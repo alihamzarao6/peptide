@@ -174,7 +174,7 @@ export function ProductCard({
             variant="outline"
             size="sm"
             onClick={() => onPriceHistoryClick(peptide.id)}
-            className="shrink-0 ml-4 bg-white/70 hover:bg-white border-gray-200 hover:border-blue-300 hover:text-blue-700 transition-all duration-200"
+            className="shrink-0 ml-4 bg-white/70 hover:bg-white border-gray-200 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 cursor-pointer"
           >
             <TrendingUp className="h-4 w-4 mr-1" />
             Price History
@@ -195,7 +195,7 @@ export function ProductCard({
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-1 h-6 px-0 text-blue-600 hover:text-blue-700 hover:bg-transparent"
+              className="mt-1 h-6 px-0 text-blue-600 hover:text-blue-700 hover:bg-transparent cursor-pointer"
             >
               {isExpanded ? "Show Less" : "Show More"}
               <ChevronDown
@@ -279,7 +279,7 @@ export function ProductCard({
                               formatRetailerName(retailer.retailer_id)
                             )
                           }
-                          className="h-5 px-2 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                          className="h-5 px-2 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer"
                         >
                           {copiedCoupon === retailer.coupon_code ? (
                             <Check className="h-2 w-2 mr-1" />
@@ -328,7 +328,7 @@ export function ProductCard({
                     className={`bg-gradient-to-r ${
                       retailerColors[retailer.retailer_id] ||
                       "from-gray-500 to-gray-600"
-                    } hover:shadow-lg transition-all duration-300 group-hover/retailer:scale-105 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    } hover:shadow-lg transition-all duration-300 group-hover/retailer:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
                     disabled={!retailer.stock}
                     onClick={() => {
                       window.open(retailer.affiliate_url, "_blank");
@@ -360,7 +360,7 @@ export function ProductCard({
             variant="outline"
             size="sm"
             onClick={() => setShowAllRetailers(!showAllRetailers)}
-            className="w-full mt-3 bg-white/50 hover:bg-white border-gray-200 hover:border-blue-300 transition-all duration-200"
+            className="w-full mt-3 bg-white/50 hover:bg-white border-gray-200 hover:border-blue-300 transition-all duration-200 cursor-pointer"
           >
             {showAllRetailers ? (
               <>

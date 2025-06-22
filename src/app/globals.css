@@ -41,6 +41,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Custom screens */
+  --breakpoint-xs: 400px;
+  --breakpoint-mq768: 768px;
+  --breakpoint-mw1600: 1600px;
+  --breakpoint-mw1950: 1950px;
 }
 
 :root {

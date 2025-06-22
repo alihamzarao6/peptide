@@ -313,12 +313,15 @@ export function PriceHistoryModal({
 
         <Tabs defaultValue="chart" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-white/50">
-            <TabsTrigger value="chart" className="data-[state=active]:bg-white">
+            <TabsTrigger
+              value="chart"
+              className="data-[state=active]:bg-white cursor-pointer"
+            >
               📈 Price Chart
             </TabsTrigger>
             <TabsTrigger
               value="summary"
-              className="data-[state=active]:bg-white"
+              className="data-[state=active]:bg-white cursor-pointer"
             >
               📊 Price Summary
             </TabsTrigger>

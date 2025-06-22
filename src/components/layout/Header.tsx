@@ -1,11 +1,14 @@
+// src/components/layout/Header.tsx
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   TestTube2,
   Calculator,
   BarChart3,
   HelpCircle,
+  Target,
   Menu,
   X,
 } from "lucide-react";
@@ -14,11 +17,28 @@ import { useState } from "react";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   const navigation = [
-    { name: "Compare", href: "/", icon: BarChart3, active: true },
-    { name: "Calculator", href: "/calculator", icon: Calculator },
-    { name: "FAQ", href: "/faq", icon: HelpCircle },
+    { name: "Compare", href: "/", icon: BarChart3, active: pathname === "/" },
+    {
+      name: "Calculator",
+      href: "/calculator",
+      icon: Calculator,
+      active: pathname === "/calculator",
+    },
+    {
+      name: "Stack Builder",
+      href: "/build-stack",
+      icon: Target,
+      active: pathname === "/build-stack",
+    },
+    {
+      name: "FAQ",
+      href: "/faq",
+      icon: HelpCircle,
+      active: pathname === "/faq",
+    },
   ];
 
   return (
@@ -49,7 +69,7 @@ export function Header() {
                 <Link key={item.name} href={item.href}>
                   <Button
                     variant={item.active ? "default" : "ghost"}
-                    className={`gap-2 transition-all duration-300 ${
+                    className={`gap-2 transition-all duration-300 cursor-pointer ${
                       item.active
                         ? "gradient-primary text-white shadow-lg hover:shadow-xl"
                         : "hover:bg-blue-50 hover:text-blue-700"
@@ -88,7 +108,7 @@ export function Header() {
                   <Link key={item.name} href={item.href}>
                     <Button
                       variant={item.active ? "default" : "ghost"}
-                      className={`w-full justify-start gap-3 ${
+                      className={`w-full justify-start gap-3 cursor-pointer ${
                         item.active
                           ? "gradient-primary text-white"
                           : "hover:bg-blue-50 hover:text-blue-700"

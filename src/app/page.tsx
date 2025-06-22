@@ -306,7 +306,7 @@ export default function HomePage() {
       />
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
+      <div className="container xl:max-w-[108rem] mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar Filters */}
           <div className="lg:w-80 shrink-0">
@@ -339,7 +339,7 @@ export default function HomePage() {
               <div
                 className={`grid gap-4 2xl:gap-6 ${
                   viewMode.type === "grid"
-                    ? "grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3"
+                    ? "grid-cols-1 xl:grid-cols-2 mw1950:grid-cols-3"
                     : "grid-cols-1"
                 }`}
               >

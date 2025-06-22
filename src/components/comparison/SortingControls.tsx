@@ -77,7 +77,7 @@ export function SortingControls({
               variant={sortBy === option.value ? "default" : "outline"}
               size="sm"
               onClick={() => onSortChange(option.value)}
-              className={`text-xs whitespace-nowrap transition-all duration-200 ${
+              className={`text-xs whitespace-nowrap transition-all duration-200 cursor-pointer ${
                 sortBy === option.value
                   ? "gradient-primary text-white shadow-md"
                   : "bg-white/70 hover:bg-white hover:shadow-sm border-gray-200"
@@ -94,7 +94,7 @@ export function SortingControls({
             variant={viewMode.type === "grid" ? "default" : "ghost"}
             size="sm"
             onClick={() => onViewModeChange({ ...viewMode, type: "grid" })}
-            className={`h-8 w-8 p-0 transition-all duration-200 ${
+            className={`h-8 w-8 p-0 transition-all duration-200 cursor-pointer ${
               viewMode.type === "grid"
                 ? "gradient-primary text-white shadow-sm"
                 : "hover:bg-gray-100"
@@ -107,7 +107,7 @@ export function SortingControls({
             variant={viewMode.type === "table" ? "default" : "ghost"}
             size="sm"
             onClick={() => onViewModeChange({ ...viewMode, type: "table" })}
-            className={`h-8 w-8 p-0 transition-all duration-200 ${
+            className={`h-8 w-8 p-0 transition-all duration-200 cursor-pointer ${
               viewMode.type === "table"
                 ? "gradient-primary text-white shadow-sm"
                 : "hover:bg-gray-100"

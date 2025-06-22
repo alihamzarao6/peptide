@@ -86,7 +86,7 @@ export function SearchHero({
                     }
                     size="sm"
                     onClick={() => onCountryChange(country.code)}
-                    className={`h-12 w-16 text-2xl p-0 transition-all duration-300 ${
+                    className={`h-12 w-16 text-2xl p-0 transition-all duration-300 cursor-pointer ${
                       selectedCountry === country.code
                         ? "gradient-primary text-white shadow-lg scale-110"
                         : "hover:bg-white/80 hover:scale-105"
