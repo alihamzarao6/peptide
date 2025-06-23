@@ -1,4 +1,3 @@
-// src/components/layout/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -11,15 +10,21 @@ import {
   Target,
   Menu,
   X,
+  Plus,
+  LogOut,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { isAuthenticated, admin, logout } = useAuth();
 
-  const navigation = [
+  // Different navigation for admin vs public
+  const publicNavigation = [
     { name: "Compare", href: "/", icon: BarChart3, active: pathname === "/" },
     {
       name: "Calculator",
@@ -41,6 +46,23 @@ export function Header() {
     },
   ];
 
+  const adminNavigation = [
+    {
+      name: "Peptide Management",
+      href: "/admin/peptide-management",
+      icon: Settings,
+      active: pathname === "/admin/peptide-management",
+    },
+    {
+      name: "Add Peptide",
+      href: "/admin/add-peptide",
+      icon: Plus,
+      active: pathname === "/admin/add-peptide",
+    },
+  ];
+
+  const navigation = isAuthenticated ? adminNavigation : publicNavigation;
+
   return (
     <header className="sticky top-0 z-50 glass-effect shadow-lg border-b border-white/20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -57,7 +79,9 @@ export function Header() {
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
                 PeptidePrice
               </h1>
-              <p className="text-xs text-gray-500 -mt-1">Compare & Save</p>
+              <p className="text-xs text-gray-500 -mt-1">
+                {isAuthenticated ? "Admin Panel" : "Compare & Save"}
+              </p>
             </div>
           </Link>
 
@@ -81,6 +105,24 @@ export function Header() {
                 </Link>
               );
             })}
+
+            {/* Admin Actions */}
+            {isAuthenticated && (
+              <div className="ml-4 flex items-center gap-2 pl-4 border-l border-gray-200">
+                <span className="text-sm text-gray-600">
+                  Welcome, {admin?.email}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={logout}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Logout
+                </Button>
+              </div>
+            )}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -121,6 +163,23 @@ export function Header() {
                   </Link>
                 );
               })}
+
+              {/* Mobile Admin Actions */}
+              {isAuthenticated && (
+                <>
+                  <div className="px-4 py-2 text-sm text-gray-600 border-t border-gray-200">
+                    {admin?.email}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={logout}
+                    className="w-full justify-start gap-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

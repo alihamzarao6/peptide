@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import {
   Edit,
@@ -13,112 +14,91 @@ import {
   PackageX,
   ExternalLink,
   TestTube2,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { adminApi, APIError, publicApi } from "@/lib/api";
+import { AdminPeptide, BulkAction } from "@/lib/types";
+import { toast } from "sonner";
 
-interface Peptide {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  dosages: string[];
-  unit: "mg" | "mcg" | "iu";
-  tags: string[];
-  status: "active" | "inactive";
+interface TablePeptide extends AdminPeptide {
   retailersCount: number;
   lowestPrice: number;
   highestPrice: number;
   avgRating: number;
   totalReviews: number;
-  createdAt: string;
-  updatedAt: string;
+}
+
+interface ApiCategory {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export default function PeptideManagementTable() {
-  const [peptides, setPeptides] = useState<Peptide[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [peptides, setPeptides] = useState<TablePeptide[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedPeptides, setSelectedPeptides] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
-  // Mock data - replace with API call
-  const mockPeptides: Peptide[] = [
-    {
-      id: "1",
-      name: "BPC-157",
-      category: "healing",
-      description:
-        "Body Protection Compound 157 is a synthetic peptide that is being investigated...",
-      dosages: ["5mg", "10mg", "15mg"],
-      unit: "mg",
-      tags: ["Healing", "Recovery", "Tissue Repair"],
-      status: "active",
-      retailersCount: 3,
-      lowestPrice: 24.79,
-      highestPrice: 35.0,
-      avgRating: 4.6,
-      totalReviews: 234,
-      createdAt: "2024-01-15",
-      updatedAt: "2024-06-20",
-    },
-    {
-      id: "2",
-      name: "Retatrutide",
-      category: "fat-loss",
-      description:
-        "Retatrutide is an investigational once-weekly injectable peptide...",
-      dosages: ["5mg", "10mg", "15mg"],
-      unit: "mg",
-      tags: ["GLP-1", "Weight Loss", "Diabetes"],
-      status: "active",
-      retailersCount: 2,
-      lowestPrice: 61.2,
-      highestPrice: 174.99,
-      avgRating: 4.7,
-      totalReviews: 134,
-      createdAt: "2024-02-10",
-      updatedAt: "2024-06-22",
-    },
-    {
-      id: "3",
-      name: "NAD+",
-      category: "anti-aging",
-      description:
-        "NAD+ (nicotinamide adenine dinucleotide) is a vital coenzyme...",
-      dosages: ["500mg", "1000mg"],
-      unit: "mg",
-      tags: ["Anti-aging", "Energy", "Longevity"],
-      status: "inactive",
-      retailersCount: 2,
-      lowestPrice: 47.99,
-      highestPrice: 190.0,
-      avgRating: 4.4,
-      totalReviews: 112,
-      createdAt: "2024-01-20",
-      updatedAt: "2024-06-18",
-    },
-  ];
-
+  // Fetch peptides from API
   useEffect(() => {
-    // Simulate API loading
-    setTimeout(() => {
-      setPeptides(mockPeptides);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    const fetchPeptides = async (): Promise<void> => {
+      try {
+        setIsLoading(true);
+        const data = await adminApi.getAllPeptides();
 
-  const categories = [
-    "fat-loss",
-    "healing",
-    "growth-hormone",
-    "anti-aging",
-    "nootropic",
-  ];
+        // Transform data with computed fields
+        const transformedData: TablePeptide[] = data.map((peptide) => ({
+          ...peptide,
+          retailersCount: peptide.retailers.length,
+          lowestPrice:
+            peptide.retailers.length > 0
+              ? Math.min(
+                  ...peptide.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : 0,
+          highestPrice:
+            peptide.retailers.length > 0
+              ? Math.max(
+                  ...peptide.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : 0,
+          avgRating:
+            peptide.retailers.length > 0
+              ? peptide.retailers.reduce((sum, r) => sum + r.rating, 0) /
+                peptide.retailers.length
+              : 0,
+          totalReviews: peptide.retailers.reduce(
+            (sum, r) => sum + r.review_count,
+            0
+          ),
+        }));
+
+        const categoriesData = await publicApi.getCategories();
+
+        setPeptides(transformedData);
+        setCategories(categoriesData.map((cat: ApiCategory) => cat.name));
+      } catch (error) {
+        console.error("Error fetching peptides:", error);
+        const message =
+          error instanceof APIError
+            ? error.message
+            : "Failed to fetch peptides";
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPeptides();
+  }, []);
 
   const filteredPeptides = peptides.filter((peptide) => {
     const matchesSearch =
@@ -135,40 +115,51 @@ export default function PeptideManagementTable() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string): Promise<void> => {
     if (
-      confirm(
+      !confirm(
         "Are you sure you want to delete this peptide? This action cannot be undone."
       )
     ) {
-      try {
-        // API call to delete peptide
-        setPeptides((prev) => prev.filter((p) => p.id !== id));
-        // Show success message
-      } catch (error) {
-        console.error("Error deleting peptide:", error);
-      }
+      return;
+    }
+
+    try {
+      await adminApi.deletePeptide(id);
+      setPeptides((prev) => prev.filter((p) => p._id !== id));
+      toast.success("Peptide deleted successfully");
+    } catch (error) {
+      console.error("Error deleting peptide:", error);
+      const message =
+        error instanceof APIError ? error.message : "Failed to delete peptide";
+      toast.error(message);
     }
   };
 
-  const handleStatusToggle = async (id: string) => {
+  const handleStatusToggle = async (id: string): Promise<void> => {
     try {
+      const peptide = peptides.find((p) => p._id === id);
+      if (!peptide) return;
+
+      const newStatus = peptide.status === "active" ? "inactive" : "active";
+      await adminApi.updatePeptideStatus(id, newStatus);
+
       setPeptides((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, status: p.status === "active" ? "inactive" : "active" }
-            : p
-        )
+        prev.map((p) => (p._id === id ? { ...p, status: newStatus } : p))
       );
-      // API call to update status
+
+      toast.success(
+        `Peptide ${newStatus === "active" ? "activated" : "deactivated"}`
+      );
     } catch (error) {
       console.error("Error updating status:", error);
+      const message =
+        error instanceof APIError ? error.message : "Failed to update status";
+      toast.error(message);
     }
   };
 
-  const handleBulkAction = async (
-    action: "activate" | "deactivate" | "delete"
-  ) => {
+  const handleBulkAction = async (action: BulkAction): Promise<void> => {
     if (selectedPeptides.length === 0) return;
 
     if (action === "delete") {
@@ -182,34 +173,78 @@ export default function PeptideManagementTable() {
     }
 
     try {
-      // API calls for bulk actions
-      if (action === "delete") {
-        setPeptides((prev) =>
-          prev.filter((p) => !selectedPeptides.includes(p.id))
-        );
-      } else {
-        const newStatus = action === "activate" ? "active" : "inactive";
-        setPeptides((prev) =>
-          prev.map((p) =>
-            selectedPeptides.includes(p.id) ? { ...p, status: newStatus } : p
-          )
-        );
-      }
+      await adminApi.bulkUpdate(action, selectedPeptides);
+
+      // Refresh the list
+      const data = await adminApi.getAllPeptides();
+      const transformedData: TablePeptide[] = data.map((peptide) => ({
+        ...peptide,
+        retailersCount: peptide.retailers.length,
+        lowestPrice:
+          peptide.retailers.length > 0
+            ? Math.min(
+                ...peptide.retailers.map((r) => r.discounted_price || r.price)
+              )
+            : 0,
+        highestPrice:
+          peptide.retailers.length > 0
+            ? Math.max(
+                ...peptide.retailers.map((r) => r.discounted_price || r.price)
+              )
+            : 0,
+        avgRating:
+          peptide.retailers.length > 0
+            ? peptide.retailers.reduce((sum, r) => sum + r.rating, 0) /
+              peptide.retailers.length
+            : 0,
+        totalReviews: peptide.retailers.reduce(
+          (sum, r) => sum + r.review_count,
+          0
+        ),
+      }));
+
+      setPeptides(transformedData);
       setSelectedPeptides([]);
+
+      toast.success(`Bulk ${action} completed successfully`);
     } catch (error) {
       console.error("Error performing bulk action:", error);
+      const message =
+        error instanceof APIError
+          ? error.message
+          : "Failed to perform bulk action";
+      toast.error(message);
     }
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category: string): string => {
     const colors: Record<string, string> = {
       "fat-loss": "bg-red-100 text-red-700 border-red-200",
       healing: "bg-green-100 text-green-700 border-green-200",
       "growth-hormone": "bg-blue-100 text-blue-700 border-blue-200",
       "anti-aging": "bg-purple-100 text-purple-700 border-purple-200",
       nootropic: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      cognitive: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      recovery: "bg-green-100 text-green-700 border-green-200",
+      longevity: "bg-purple-100 text-purple-700 border-purple-200",
     };
     return colors[category] || "bg-gray-100 text-gray-700 border-gray-200";
+  };
+
+  const handleSelectAll = (checked: boolean): void => {
+    if (checked) {
+      setSelectedPeptides(filteredPeptides.map((p) => p._id));
+    } else {
+      setSelectedPeptides([]);
+    }
+  };
+
+  const handleSelectPeptide = (id: string, checked: boolean): void => {
+    if (checked) {
+      setSelectedPeptides((prev) => [...prev, id]);
+    } else {
+      setSelectedPeptides((prev) => prev.filter((pId) => pId !== id));
+    }
   };
 
   return (
@@ -310,6 +345,13 @@ export default function PeptideManagementTable() {
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => handleBulkAction("deactivate")}
+                  >
+                    Deactivate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => handleBulkAction("delete")}
                     className="text-red-600 hover:text-red-700"
                   >
@@ -349,17 +391,10 @@ export default function PeptideManagementTable() {
                       <input
                         type="checkbox"
                         checked={
-                          selectedPeptides.length === filteredPeptides.length
+                          selectedPeptides.length === filteredPeptides.length &&
+                          filteredPeptides.length > 0
                         }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedPeptides(
-                              filteredPeptides.map((p) => p.id)
-                            );
-                          } else {
-                            setSelectedPeptides([]);
-                          }
-                        }}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
                         className="rounded"
                       />
                     </th>
@@ -395,25 +430,16 @@ export default function PeptideManagementTable() {
                 <tbody className="divide-y divide-gray-200">
                   {filteredPeptides.map((peptide) => (
                     <tr
-                      key={peptide.id}
+                      key={peptide._id}
                       className="hover:bg-white/50 transition-colors"
                     >
                       <td className="px-6 py-4">
                         <input
                           type="checkbox"
-                          checked={selectedPeptides.includes(peptide.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedPeptides((prev) => [
-                                ...prev,
-                                peptide.id,
-                              ]);
-                            } else {
-                              setSelectedPeptides((prev) =>
-                                prev.filter((id) => id !== peptide.id)
-                              );
-                            }
-                          }}
+                          checked={selectedPeptides.includes(peptide._id)}
+                          onChange={(e) =>
+                            handleSelectPeptide(peptide._id, e.target.checked)
+                          }
                           className="rounded"
                         />
                       </td>
@@ -477,10 +503,11 @@ export default function PeptideManagementTable() {
                       <td className="px-6 py-4">
                         <div className="text-sm">
                           <div className="text-gray-900 font-medium">
-                            ${peptide.lowestPrice} - ${peptide.highestPrice}
+                            ${peptide.lowestPrice.toFixed(2)} - $
+                            {peptide.highestPrice.toFixed(2)}
                           </div>
                           <div className="text-gray-500">
-                            Best: ${peptide.lowestPrice}
+                            Best: ${peptide.lowestPrice.toFixed(2)}
                           </div>
                         </div>
                       </td>
@@ -490,7 +517,7 @@ export default function PeptideManagementTable() {
                           <div className="flex items-center gap-1">
                             <span className="text-yellow-400">★</span>
                             <span className="text-gray-900">
-                              {peptide.avgRating}
+                              {peptide.avgRating.toFixed(1)}
                             </span>
                           </div>
                           <div className="text-gray-500">
@@ -501,7 +528,7 @@ export default function PeptideManagementTable() {
 
                       <td className="px-6 py-4">
                         <button
-                          onClick={() => handleStatusToggle(peptide.id)}
+                          onClick={() => handleStatusToggle(peptide._id)}
                           className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                             peptide.status === "active"
                               ? "bg-green-100 text-green-700 hover:bg-green-200"
@@ -532,7 +559,7 @@ export default function PeptideManagementTable() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              window.open(`/peptide/${peptide.id}`, "_blank")
+                              window.open(`/peptide/${peptide.slug}`, "_blank")
                             }
                             className="text-gray-600 hover:text-gray-700"
                           >
@@ -543,7 +570,7 @@ export default function PeptideManagementTable() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              (window.location.href = `/admin/edit-peptide/${peptide.id}`)
+                              (window.location.href = `/admin/edit-peptide/${peptide._id}`)
                             }
                             className="text-blue-600 hover:text-blue-700"
                           >
@@ -553,7 +580,7 @@ export default function PeptideManagementTable() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(peptide.id)}
+                            onClick={() => handleDelete(peptide._id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-4 w-4" />

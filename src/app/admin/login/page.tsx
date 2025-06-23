@@ -1,45 +1,86 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Shield, Eye, EyeOff, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { LoginCredentials } from "@/lib/types";
+
+interface FormData {
+  email: string;
+  password: string;
+}
 
 export default function AdminLoginPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     email: "",
     password: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const { login, isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/admin/peptide-management");
+    }
+  }, [isAuthenticated, router]);
+
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Validate form data
+    if (!formData.email || !formData.password) {
+      setError("Please fill in all fields");
+      setIsLoading(false);
+      return;
+    }
 
-      // Hard-coded credentials check (replace with actual API call)
-      if (
-        formData.email === "admin@peptideprice.com" &&
-        formData.password === "admin123!"
-      ) {
-        // Set auth token and redirect to admin dashboard
-        localStorage.setItem("admin_token", "authenticated");
-        window.location.href = "/admin/dashboard";
+    try {
+      const credentials: LoginCredentials = {
+        email: formData.email.trim(),
+        password: formData.password,
+      };
+
+      const result = await login(credentials);
+
+      if (result.success) {
+        // Router will handle redirect via useEffect
       } else {
-        setError("Invalid email or password");
+        setError(result.error || "Login failed");
       }
     } catch (err) {
+      console.error("Login error:", err);
       setError("Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleInputChange =
+    (field: keyof FormData) =>
+    (e: React.ChangeEvent<HTMLInputElement>): void => {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: e.target.value,
+      }));
+      // Clear error when user starts typing
+      if (error) setError("");
+    };
+
+  const togglePasswordVisibility = (): void => {
+    setShowPassword((prev) => !prev);
   };
 
   return (
@@ -80,7 +121,7 @@ export default function AdminLoginPage() {
             </Alert>
           )}
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="email"
@@ -93,11 +134,10 @@ export default function AdminLoginPage() {
                 type="email"
                 required
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, email: e.target.value }))
-                }
+                onChange={handleInputChange("email")}
                 className="bg-white/70"
                 placeholder="admin@peptideprice.com"
+                disabled={isLoading}
               />
             </div>
 
@@ -114,21 +154,18 @@ export default function AdminLoginPage() {
                   type={showPassword ? "text" : "password"}
                   required
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      password: e.target.value,
-                    }))
-                  }
+                  onChange={handleInputChange("password")}
                   className="bg-white/70 pr-12"
                   placeholder="Enter your password"
+                  disabled={isLoading}
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={togglePasswordVisibility}
                   className="absolute right-2 top-1/2 transform -translate-y-1/2 h-auto p-1"
+                  disabled={isLoading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -140,9 +177,9 @@ export default function AdminLoginPage() {
             </div>
 
             <Button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="w-full gradient-primary text-white shadow-lg hover:shadow-xl transition-all"
+              type="submit"
+              disabled={isLoading || !formData.email || !formData.password}
+              className="w-full gradient-primary text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               size="lg"
             >
               {isLoading ? (
@@ -154,7 +191,7 @@ export default function AdminLoginPage() {
                 "Sign In"
               )}
             </Button>
-          </div>
+          </form>
 
           {/* Demo Credentials */}
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">

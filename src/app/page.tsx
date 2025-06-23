@@ -7,173 +7,105 @@ import { SortingControls } from "@/components/comparison/SortingControls";
 import { ProductCard } from "@/components/comparison/ProductCard";
 import { PriceHistoryModal } from "@/components/comparison/PriceHistoryModal";
 import { FilterState, ViewMode, Peptide } from "@/lib/types";
+import { publicApi } from "@/lib/api";
+import { toast } from "sonner";
 
-// Sample data - replace with API calls
-const samplePeptides: Peptide[] = [
-  {
-    id: "retatrutide",
-    name: "Retatrutide",
-    slug: "retatrutide",
-    category: "fat-loss",
-    description:
-      "Retatrutide is an investigational once-weekly injectable peptide that acts as a triple agonist of the GLP-1, GIP, and glucagon receptors. This powerful combination targets multiple pathways involved in glucose regulation, appetite control, and weight management.",
-    dosages: ["5mg", "10mg", "15mg"],
-    unit: "mg",
-    tags: ["GLP-1", "Weight Loss", "Diabetes"],
-    retailers: [
-      {
-        retailer_id: "aminoasylum",
-        product_id: "retatru-5mg",
-        price: 174.99,
-        discounted_price: 139.99,
-        discount_percentage: 20,
-        stock: true,
-        rating: 4.8,
-        review_count: 89,
-        affiliate_url:
-          "https://aminoasylum.shop/product/retatru/?v=0b3b97fa6688/ref/1616/",
-        coupon_code: "derek",
-        size: "5mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-      {
-        retailer_id: "modernaminos",
-        product_id: "retatrutide-5mg",
-        price: 68.0,
-        discounted_price: 61.2,
-        discount_percentage: 10,
-        stock: true,
-        rating: 4.7,
-        review_count: 45,
-        affiliate_url:
-          "https://modernaminos.com/product/retatrutide/?ref=derek",
-        coupon_code: "derek",
-        size: "5mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-      {
-        retailer_id: "ascension",
-        product_id: "retatrutide-5mg",
-        price: 174.99,
-        discounted_price: 139.99,
-        discount_percentage: 20,
-        stock: false,
-        rating: 4.5,
-        review_count: 67,
-        affiliate_url:
-          "https://ascensionpeptides.com/product/retatrutide-5mg/ref/derekpruski/",
-        coupon_code: "derek",
-        size: "5mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-    ],
-    price_history: [],
-  },
-  {
-    id: "nad-plus",
-    name: "NAD+",
-    slug: "nad-plus",
-    category: "anti-aging",
-    description:
-      "NAD+ (nicotinamide adenine dinucleotide) is a vital coenzyme found in all living cells that acts as an electron carrier in redox reactions. It plays crucial roles in energy metabolism, DNA repair, and cellular signaling pathways.",
-    dosages: ["500mg", "1000mg", "200mg"],
-    unit: "mg",
-    tags: ["Anti-aging", "Energy", "Longevity"],
-    retailers: [
-      {
-        retailer_id: "prime",
-        product_id: "nad-1000mg",
-        price: 190.0,
-        discounted_price: 171.0,
-        discount_percentage: 10,
-        stock: true,
-        rating: 4.3,
-        review_count: 34,
-        affiliate_url:
-          "https://primepeptides.co/products/nad?sca_ref=8658472.73VW1Vo4d1",
-        size: "1000mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-      {
-        retailer_id: "aminoasylum",
-        product_id: "nad-500mg",
-        price: 59.99,
-        discounted_price: 47.99,
-        discount_percentage: 20,
-        stock: true,
-        rating: 4.6,
-        review_count: 78,
-        affiliate_url: "https://aminoasylum.shop/product/nad/?ref=derek",
-        coupon_code: "derek",
-        size: "500mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-    ],
-    price_history: [],
-  },
-  {
-    id: "bpc-157",
-    name: "BPC-157",
-    slug: "bpc-157",
-    category: "healing",
-    description:
-      "Body Protection Compound 157 is a synthetic peptide that is being investigated for its potential regenerative effects on muscles, tendons, and other soft tissues.",
-    dosages: ["5mg", "10mg", "15mg"],
-    unit: "mg",
-    tags: ["Healing", "Recovery", "Tissue Repair"],
-    retailers: [
-      {
-        retailer_id: "ascension",
-        product_id: "bpc157-5mg",
-        price: 38.99,
-        discounted_price: 24.79,
-        discount_percentage: 36,
-        stock: true,
-        rating: 4.5,
-        review_count: 156,
-        affiliate_url:
-          "https://ascensionpeptides.com/product/bpc-157/?ref=derek",
-        coupon_code: "derek",
-        size: "5mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-      {
-        retailer_id: "solution",
-        product_id: "bpc157-5mg",
-        price: 35.0,
-        discounted_price: 25.5,
-        discount_percentage: 27,
-        stock: true,
-        rating: 5.0,
-        review_count: 89,
-        affiliate_url:
-          "https://solutionpeptides.com/product/bpc-157/?ref=derek",
-        coupon_code: "derek",
-        size: "5mg",
-        last_updated: "2025-06-16T22:54:01.548466+00:00",
-      },
-    ],
-    price_history: [],
-  },
-];
+interface ApiPeptide {
+  _id: string;
+  name: string;
+  slug: string;
+  category: string;
+  subcategory?: string;
+  description: string;
+  dosages: string[];
+  unit: "mg" | "mcg" | "iu";
+  tags: string[];
+  image?: string;
+  retailers: Array<{
+    _id?: string;
+    retailer_id: string;
+    retailer_name: string;
+    product_id: string;
+    price: number;
+    discounted_price?: number;
+    discount_percentage?: number;
+    stock: boolean;
+    rating: number;
+    review_count: number;
+    affiliate_url: string;
+    coupon_code?: string;
+    size: string;
+    last_updated?: string;
+  }>;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  // Calculator fields
+  startingDose?: string;
+  maintenanceDose?: string;
+  frequency?: string;
+  dosageNotes?: string;
+  // Stack builder fields
+  recommendedForGoals?: string[];
+  stackDifficulty?: "Beginner" | "Intermediate" | "Advanced";
+  stackTiming?: string;
+  stackDuration?: number;
+}
 
-const companies = [
-  "Amino Asylum",
-  "Modern Aminos",
-  "Ascension Peptides",
-  "Simple Peptide",
-  "Prime Peptides",
-  "Solution Peptides",
-];
-const categories = [
-  "Fat Loss",
-  "Healing",
-  "Growth Hormone",
-  "Anti-Aging",
-  "Nootropic",
-];
+interface ApiCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface ApiRetailer {
+  id: string;
+  name: string;
+}
+
+// Transform API data to frontend format
+const transformPeptideData = (apiPeptide: ApiPeptide): Peptide => {
+  return {
+    _id: apiPeptide._id,
+    id: apiPeptide._id, // For backward compatibility
+    name: apiPeptide.name,
+    slug: apiPeptide.slug,
+    category: apiPeptide.category,
+    subcategory: apiPeptide.subcategory,
+    description: apiPeptide.description,
+    dosages: apiPeptide.dosages,
+    unit: apiPeptide.unit,
+    tags: apiPeptide.tags,
+    image: apiPeptide.image,
+    retailers: apiPeptide.retailers.map((retailer) => ({
+      retailer_id: retailer.retailer_id,
+      product_id: retailer.product_id,
+      price: retailer.price,
+      original_price: retailer.price,
+      discounted_price: retailer.discounted_price,
+      discount_percentage: retailer.discount_percentage,
+      stock: retailer.stock,
+      rating: retailer.rating,
+      review_count: retailer.review_count,
+      affiliate_url: retailer.affiliate_url,
+      coupon_code: retailer.coupon_code,
+      size: retailer.size,
+      last_updated: retailer.last_updated || new Date().toISOString(),
+    })),
+    price_history: [], // Empty for now, will be populated if needed
+    status: apiPeptide.status,
+    createdAt: apiPeptide.createdAt,
+    updatedAt: apiPeptide.updatedAt,
+  };
+};
 
 export default function HomePage() {
+  const [peptides, setPeptides] = useState<Peptide[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     companies: [],
@@ -183,7 +115,7 @@ export default function HomePage() {
     country: "us",
   });
 
-  const [sortBy, setSortBy] = useState("name_asc");
+  const [sortBy, setSortBy] = useState<string>("name_asc");
   const [viewMode, setViewMode] = useState<ViewMode>({
     type: "grid",
     itemsPerPage: 12,
@@ -191,45 +123,80 @@ export default function HomePage() {
   const [selectedPeptideForHistory, setSelectedPeptideForHistory] = useState<
     string | null
   >(null);
-  const [filteredPeptides, setFilteredPeptides] =
-    useState<Peptide[]>(samplePeptides);
+  const [filteredPeptides, setFilteredPeptides] = useState<Peptide[]>([]);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async (): Promise<void> => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const [peptidesData, categoriesData, retailersData] = await Promise.all(
+          [
+            publicApi.getPeptides() as Promise<ApiPeptide[]>,
+            publicApi.getCategories() as Promise<ApiCategory[]>,
+            publicApi.getRetailers() as Promise<ApiRetailer[]>,
+          ]
+        );
+
+        // Transform API data to frontend format
+        const transformedPeptides = peptidesData.map(transformPeptideData);
+        setPeptides(transformedPeptides);
+
+        // Extract category and company names
+        setCategories(categoriesData.map((cat: ApiCategory) => cat.name));
+        setCompanies(retailersData.map((ret: ApiRetailer) => ret.name));
+      } catch (error: any) {
+        console.error("Error fetching data:", error);
+        const errorMessage = error.message || "Failed to load peptides";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Filter and sort peptides
   useEffect(() => {
-    let filtered = [...samplePeptides];
+    let filtered: Peptide[] = [...peptides];
 
     // Search filter
-    if (filters.search) {
+    if (filters.search.trim()) {
+      const searchTerm = filters.search.toLowerCase();
       filtered = filtered.filter(
         (peptide) =>
-          peptide.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-          peptide.description
-            .toLowerCase()
-            .includes(filters.search.toLowerCase())
+          peptide.name.toLowerCase().includes(searchTerm) ||
+          peptide.description.toLowerCase().includes(searchTerm) ||
+          peptide.tags.some((tag) => tag.toLowerCase().includes(searchTerm))
       );
     }
 
     // Company filter
     if (filters.companies.length > 0) {
       filtered = filtered.filter((peptide) =>
-        peptide.retailers.some((retailer) =>
-          filters.companies.some((company) =>
-            company
-              .toLowerCase()
-              .replace(/\s+/g, "")
-              .includes(retailer.retailer_id.toLowerCase())
-          )
-        )
+        peptide.retailers.some((retailer) => {
+          // Get retailer name from the retailers array
+          const retailerName = companies.find((company) =>
+            peptide.retailers.some(
+              (r) => r.retailer_id === company.toLowerCase().replace(/\s+/g, "")
+            )
+          );
+          return filters.companies.includes(retailerName || "");
+        })
       );
     }
 
     // Category filter
     if (filters.categories.length > 0) {
       filtered = filtered.filter((peptide) =>
-        filters.categories.some(
-          (category) =>
-            category.toLowerCase().replace(/\s+/g, "-") === peptide.category
-        )
+        filters.categories.some((category) => {
+          const categorySlug = category.toLowerCase().replace(/\s+/g, "-");
+          return categorySlug === peptide.category;
+        })
       );
     }
 
@@ -242,9 +209,13 @@ export default function HomePage() {
 
     // Price range filter
     filtered = filtered.filter((peptide) => {
-      const minPrice = Math.min(
-        ...peptide.retailers.map((r) => r.discounted_price || r.price)
+      if (peptide.retailers.length === 0) return false;
+
+      const prices = peptide.retailers.map(
+        (r) => r.discounted_price || r.price
       );
+      const minPrice = Math.min(...prices);
+
       return (
         minPrice >= filters.priceRange.min && minPrice <= filters.priceRange.max
       );
@@ -257,52 +228,162 @@ export default function HomePage() {
           return a.name.localeCompare(b.name);
         case "name_desc":
           return b.name.localeCompare(a.name);
-        case "price_asc":
-          const aMinPrice = Math.min(
-            ...a.retailers.map((r) => r.discounted_price || r.price)
-          );
-          const bMinPrice = Math.min(
-            ...b.retailers.map((r) => r.discounted_price || r.price)
-          );
+        case "price_asc": {
+          const aMinPrice =
+            a.retailers.length > 0
+              ? Math.min(
+                  ...a.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : Infinity;
+          const bMinPrice =
+            b.retailers.length > 0
+              ? Math.min(
+                  ...b.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : Infinity;
           return aMinPrice - bMinPrice;
-        case "price_desc":
-          const aMaxPrice = Math.min(
-            ...a.retailers.map((r) => r.discounted_price || r.price)
-          );
-          const bMaxPrice = Math.min(
-            ...b.retailers.map((r) => r.discounted_price || r.price)
-          );
-          return bMaxPrice - aMaxPrice;
-        case "rating_desc":
+        }
+        case "price_desc": {
+          const aMinPrice =
+            a.retailers.length > 0
+              ? Math.min(
+                  ...a.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : 0;
+          const bMinPrice =
+            b.retailers.length > 0
+              ? Math.min(
+                  ...b.retailers.map((r) => r.discounted_price || r.price)
+                )
+              : 0;
+          return bMinPrice - aMinPrice;
+        }
+        case "rating_desc": {
           const aAvgRating =
-            a.retailers.reduce((sum, r) => sum + r.rating, 0) /
-            a.retailers.length;
+            a.retailers.length > 0
+              ? a.retailers.reduce((sum, r) => sum + r.rating, 0) /
+                a.retailers.length
+              : 0;
           const bAvgRating =
-            b.retailers.reduce((sum, r) => sum + r.rating, 0) /
-            b.retailers.length;
+            b.retailers.length > 0
+              ? b.retailers.reduce((sum, r) => sum + r.rating, 0) /
+                b.retailers.length
+              : 0;
           return bAvgRating - aAvgRating;
+        }
         default:
           return 0;
       }
     });
 
     setFilteredPeptides(filtered);
-  }, [filters, sortBy]);
+  }, [filters, sortBy, peptides, companies]);
 
-  const activeFiltersCount =
+  const activeFiltersCount: number =
     filters.companies.length +
     filters.categories.length +
     (filters.availability ? 1 : 0) +
     (filters.priceRange.min > 0 || filters.priceRange.max < 1000 ? 1 : 0);
+
+  const handleFiltersChange = (newFilters: FilterState): void => {
+    setFilters(newFilters);
+  };
+
+  const handleSortChange = (newSort: string): void => {
+    setSortBy(newSort);
+  };
+
+  const handleViewModeChange = (newViewMode: ViewMode): void => {
+    setViewMode(newViewMode);
+  };
+
+  const handlePriceHistoryClick = (peptideId: string): void => {
+    setSelectedPeptideForHistory(peptideId);
+  };
+
+  const handleClosePriceHistory = (): void => {
+    setSelectedPeptideForHistory(null);
+  };
+
+  const handleSearchChange = (search: string): void => {
+    setFilters((prev) => ({ ...prev, search }));
+  };
+
+  const handleCountryChange = (country: string): void => {
+    setFilters((prev) => ({ ...prev, country }));
+  };
+
+  const clearAllFilters = (): void => {
+    setFilters({
+      search: "",
+      companies: [],
+      categories: [],
+      priceRange: { min: 0, max: 1000 },
+      availability: false,
+      country: filters.country,
+    });
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen">
+        <SearchHero
+          searchQuery={filters.search}
+          onSearchChange={handleSearchChange}
+          selectedCountry={filters.country}
+          onCountryChange={handleCountryChange}
+        />
+        <div className="container xl:max-w-[108rem] mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading peptides...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen">
+        <SearchHero
+          searchQuery={filters.search}
+          onSearchChange={handleSearchChange}
+          selectedCountry={filters.country}
+          onCountryChange={handleCountryChange}
+        />
+        <div className="container xl:max-w-[108rem] mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-red-600 mb-2">
+                Error Loading Data
+              </h2>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
       <SearchHero
         searchQuery={filters.search}
-        onSearchChange={(search) => setFilters({ ...filters, search })}
+        onSearchChange={handleSearchChange}
         selectedCountry={filters.country}
-        onCountryChange={(country) => setFilters({ ...filters, country })}
+        onCountryChange={handleCountryChange}
       />
 
       {/* Main Content */}
@@ -312,7 +393,7 @@ export default function HomePage() {
           <div className="lg:w-80 shrink-0">
             <FilterSidebar
               filters={filters}
-              onFiltersChange={setFilters}
+              onFiltersChange={handleFiltersChange}
               companies={companies}
               categories={categories}
               totalResults={filteredPeptides.length}
@@ -325,10 +406,10 @@ export default function HomePage() {
             <div className="mb-8">
               <SortingControls
                 sortBy={sortBy}
-                onSortChange={setSortBy}
+                onSortChange={handleSortChange}
                 viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                totalResults={samplePeptides.length}
+                onViewModeChange={handleViewModeChange}
+                totalResults={peptides.length}
                 showingResults={filteredPeptides.length}
                 activeFiltersCount={activeFiltersCount}
               />
@@ -345,9 +426,9 @@ export default function HomePage() {
               >
                 {filteredPeptides.map((peptide) => (
                   <ProductCard
-                    key={peptide.id}
+                    key={peptide._id}
                     peptide={peptide}
-                    onPriceHistoryClick={setSelectedPeptideForHistory}
+                    onPriceHistoryClick={handlePriceHistoryClick}
                   />
                 ))}
               </div>
@@ -365,17 +446,8 @@ export default function HomePage() {
                     you're looking for.
                   </p>
                   <button
-                    onClick={() =>
-                      setFilters({
-                        search: "",
-                        companies: [],
-                        categories: [],
-                        priceRange: { min: 0, max: 1000 },
-                        availability: false,
-                        country: filters.country,
-                      })
-                    }
-                    className="text-blue-600 hover:text-blue-700 font-medium"
+                    onClick={clearAllFilters}
+                    className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                   >
                     Clear all filters
                   </button>
@@ -390,7 +462,7 @@ export default function HomePage() {
       {selectedPeptideForHistory && (
         <PriceHistoryModal
           peptideId={selectedPeptideForHistory}
-          onClose={() => setSelectedPeptideForHistory(null)}
+          onClose={handleClosePriceHistory}
         />
       )}
     </div>
