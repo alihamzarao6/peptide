@@ -270,27 +270,29 @@ export interface ApiError {
 
 // Form Types for Admin
 export interface PeptideFormData {
-    name: string
-    category: string
-    description: string
-    dosages: string[]
-    unit: 'mg' | 'mcg' | 'iu'
-    tags: string[]
-    image?: string
-    // Calculator fields
-    startingDose?: string
-    maintenanceDose?: string
-    frequency?: string
-    dosageNotes?: string
-    // Stack builder fields
-    recommendedForGoals?: string[]
-    stackDifficulty?: 'Beginner' | 'Intermediate' | 'Advanced'
-    stackTiming?: string
-    stackDuration?: number
-    // Status
-    status?: 'active' | 'inactive'
+  name: string;
+  category: string;
+  subcategory?: string;
+  description: string;
+  dosages: string[];
+  unit: 'mg' | 'mcg' | 'iu';
+  tags: string[];
+  image?: string;
+  // Calculator fields
+  startingDose?: string;
+  maintenanceDose?: string;
+  frequency?: string;
+  dosageNotes?: string;
+  // Stack builder fields
+  recommendedForGoals?: string[];
+  stackDifficulty?: 'Beginner' | 'Intermediate' | 'Advanced';
+  stackTiming?: string;
+  stackDuration?: number;
+  // Status
+  status?: 'active' | 'inactive';
+  // Add retailers to the form data
+  retailers?: RetailerFormData[];
 }
-
 export interface RetailerFormData {
     retailer_id: string
     retailer_name: string

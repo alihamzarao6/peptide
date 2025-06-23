@@ -8,7 +8,8 @@ import {
   Category,
   Retailer,
   ApiError,
-  AdminUser
+  AdminUser,
+  RetailerFormData
 } from '@/lib/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -122,15 +123,26 @@ export const adminApi = {
     return apiRequest<AdminPeptide>(`/admin/peptides/${id}`);
   },
 
-  createPeptide: (peptideData: PeptideFormData): Promise<{ message: string; peptide: AdminPeptide }> => {
+  createPeptide: (peptideData: PeptideFormData & { retailers: RetailerFormData[] }): Promise<{ message: string; peptide: AdminPeptide }> => {
+    // Validate required fields before sending
     if (!peptideData.name || !peptideData.category || !peptideData.description) {
       throw new APIError('Name, category, and description are required');
     }
+
+    if (!peptideData.dosages || peptideData.dosages.filter(d => d.trim()).length === 0) {
+      throw new APIError('At least one dosage is required');
+    }
+
+    if (!peptideData.retailers || peptideData.retailers.filter(r => r.retailer_id && r.affiliate_url && r.size && r.price > 0).length === 0) {
+      throw new APIError('At least one valid retailer is required');
+    }
+
     return apiRequest<{ message: string; peptide: AdminPeptide }>('/admin/peptides', {
       method: 'POST',
       body: JSON.stringify(peptideData),
     });
   },
+
 
   updatePeptide: (id: string, peptideData: Partial<PeptideFormData>): Promise<{ message: string; peptide: AdminPeptide }> => {
     if (!id) throw new APIError('Peptide ID is required');

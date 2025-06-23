@@ -23,6 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { adminApi, APIError, publicApi } from "@/lib/api";
 import { AdminPeptide, BulkAction } from "@/lib/types";
 import { toast } from "sonner";
+import { ViewPeptideModal } from "@/components/modals/ViewPeptideModal";
+import { UpdatePeptideModal } from "@/components/modals/UpdatePeptideModal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface TablePeptide extends AdminPeptide {
   retailersCount: number;
@@ -46,6 +49,13 @@ export default function PeptideManagementTable() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedPeptides, setSelectedPeptides] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+
+  const [selectedPeptideForView, setSelectedPeptideForView] =
+    useState<AdminPeptide | null>(null);
+  const [selectedPeptideForEdit, setSelectedPeptideForEdit] =
+    useState<AdminPeptide | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Fetch peptides from API
   useEffect(() => {
@@ -245,6 +255,68 @@ export default function PeptideManagementTable() {
     } else {
       setSelectedPeptides((prev) => prev.filter((pId) => pId !== id));
     }
+  };
+
+  const handleViewPeptide = (peptide: AdminPeptide) => {
+    setSelectedPeptideForView(peptide);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEditPeptide = (peptide: AdminPeptide) => {
+    setSelectedPeptideForEdit(peptide);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseViewModal = () => {
+    setIsViewModalOpen(false);
+    setSelectedPeptideForView(null);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedPeptideForEdit(null);
+  };
+
+  const handleEditSuccess = (updatedPeptide: AdminPeptide) => {
+    // Update the peptide in the local state
+    setPeptides((prev) =>
+      prev.map((p) =>
+        p._id === updatedPeptide._id
+          ? {
+              ...updatedPeptide,
+              retailersCount: updatedPeptide.retailers.length,
+              lowestPrice:
+                updatedPeptide.retailers.length > 0
+                  ? Math.min(
+                      ...updatedPeptide.retailers.map(
+                        (r) => r.discounted_price || r.price
+                      )
+                    )
+                  : 0,
+              highestPrice:
+                updatedPeptide.retailers.length > 0
+                  ? Math.max(
+                      ...updatedPeptide.retailers.map(
+                        (r) => r.discounted_price || r.price
+                      )
+                    )
+                  : 0,
+              avgRating:
+                updatedPeptide.retailers.length > 0
+                  ? updatedPeptide.retailers.reduce(
+                      (sum, r) => sum + r.rating,
+                      0
+                    ) / updatedPeptide.retailers.length
+                  : 0,
+              totalReviews: updatedPeptide.retailers.reduce(
+                (sum, r) => sum + r.review_count,
+                0
+              ),
+            }
+          : p
+      )
+    );
+    handleCloseEditModal();
   };
 
   return (
@@ -558,21 +630,68 @@ export default function PeptideManagementTable() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              window.open(`/peptide/${peptide.slug}`, "_blank")
-                            }
-                            className="text-gray-600 hover:text-gray-700"
+                            onClick={() => handleViewPeptide(peptide)}
+                            className="text-blue-600 hover:text-blue-700"
+                            title="View Details"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
+                          {peptide.retailers.length > 0 ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-gray-600 hover:text-gray-700"
+                                  title="Visit Retailer"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="!bg-white">
+                                {peptide.retailers.map((retailer, index) => (
+                                  <DropdownMenuItem
+                                    key={index}
+                                    onClick={() =>
+                                      window.open(
+                                        retailer.affiliate_url,
+                                        "_blank"
+                                      )
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <ExternalLink className="h-3 w-3" />
+                                      <span>{retailer.retailer_name}</span>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {retailer.size}
+                                      </Badge>
+                                    </div>
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="text-gray-400"
+                              title="No retailers available"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          )}
 
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              (window.location.href = `/admin/edit-peptide/${peptide._id}`)
-                            }
-                            className="text-blue-600 hover:text-blue-700"
+                            onClick={() => handleEditPeptide(peptide)}
+                            className="text-green-600 hover:text-green-700"
+                            title="Edit Peptide"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -654,6 +773,24 @@ export default function PeptideManagementTable() {
           </Card>
         </div>
       </div>
+
+      <ViewPeptideModal
+        peptide={selectedPeptideForView}
+        isOpen={isViewModalOpen}
+        onClose={handleCloseViewModal}
+        onEdit={(peptide) => {
+          handleCloseViewModal();
+          handleEditPeptide(peptide);
+        }}
+      />
+
+      {/* Update Peptide Modal */}
+      <UpdatePeptideModal
+        peptide={selectedPeptideForEdit}
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 }
