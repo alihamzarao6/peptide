@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { publicApi } from "@/lib/api";
 
 interface CalculationResult {
   totalDoses: number;
@@ -50,67 +51,6 @@ interface DosageGuide {
   color: string;
 }
 
-const dosageGuides: DosageGuide[] = [
-  {
-    name: "BPC-157",
-    category: "Healing",
-    startingDose: "250-500 mcg",
-    maintenanceDose: "250-500 mcg",
-    frequency: "Daily",
-    notes:
-      "Take on empty stomach. Can be injected subcutaneously near injury site.",
-    color: "bg-green-100 text-green-700 border-green-200",
-  },
-  {
-    name: "TB-500",
-    category: "Recovery",
-    startingDose: "2-2.5 mg",
-    maintenanceDose: "2-2.5 mg",
-    frequency: "2x per week",
-    notes:
-      "Loading phase: 2-2.5mg twice weekly for 4-6 weeks. Maintenance: once weekly.",
-    color: "bg-blue-100 text-blue-700 border-blue-200",
-  },
-  {
-    name: "Ipamorelin",
-    category: "Growth Hormone",
-    startingDose: "100-300 mcg",
-    maintenanceDose: "200-300 mcg",
-    frequency: "2-3x daily",
-    notes: "Best taken on empty stomach, 20min before meals or 2hrs after.",
-    color: "bg-purple-100 text-purple-700 border-purple-200",
-  },
-  {
-    name: "CJC-1295",
-    category: "Growth Hormone",
-    startingDose: "100 mcg",
-    maintenanceDose: "100-200 mcg",
-    frequency: "2-3x weekly",
-    notes:
-      "Often stacked with Ipamorelin. Take before bedtime for best results.",
-    color: "bg-indigo-100 text-indigo-700 border-indigo-200",
-  },
-  {
-    name: "Semaglutide",
-    category: "Weight Loss",
-    startingDose: "0.25 mg",
-    maintenanceDose: "1-2.4 mg",
-    frequency: "Weekly",
-    notes:
-      "Start low and increase gradually. Week 1-4: 0.25mg, Week 5-8: 0.5mg, etc.",
-    color: "bg-red-100 text-red-700 border-red-200",
-  },
-  {
-    name: "NAD+",
-    category: "Anti-Aging",
-    startingDose: "50-100 mg",
-    maintenanceDose: "100-200 mg",
-    frequency: "2-3x weekly",
-    notes: "Can cause flushing. Start with lower doses and increase gradually.",
-    color: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  },
-];
-
 export default function CalculatorPage() {
   const [formData, setFormData] = useState({
     totalAmount: "",
@@ -125,6 +65,57 @@ export default function CalculatorPage() {
 
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [selectedGuide, setSelectedGuide] = useState<string>("");
+  const [dosageGuides, setDosageGuides] = useState<DosageGuide[]>([]);
+  const [isLoadingGuides, setIsLoadingGuides] = useState(true);
+
+  // Fetch dosage guides from API
+  useEffect(() => {
+    const fetchDosageGuides = async () => {
+      try {
+        setIsLoadingGuides(true);
+        const guides = await publicApi.getPeptides();
+
+        // Transform peptides into dosage guides
+        const dosageGuidesData: DosageGuide[] = guides
+          .filter(
+            (peptide: any) => peptide.startingDose && peptide.maintenanceDose
+          )
+          .map((peptide: any) => ({
+            name: peptide.name,
+            category: peptide.category
+              .split("-")
+              .map(
+                (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+              )
+              .join(" "),
+            startingDose: peptide.startingDose,
+            maintenanceDose: peptide.maintenanceDose,
+            frequency: peptide.frequency || "As directed",
+            notes: peptide.dosageNotes || "No specific notes available",
+            color: getCategoryColor(peptide.category),
+          }));
+
+        setDosageGuides(dosageGuidesData);
+      } catch (error) {
+        console.error("Error fetching dosage guides:", error);
+      } finally {
+        setIsLoadingGuides(false);
+      }
+    };
+
+    fetchDosageGuides();
+  }, []);
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      "fat-loss": "bg-red-100 text-red-700 border-red-200",
+      healing: "bg-green-100 text-green-700 border-green-200",
+      "growth-hormone": "bg-blue-100 text-blue-700 border-blue-200",
+      "anti-aging": "bg-purple-100 text-purple-700 border-purple-200",
+      nootropic: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    };
+    return colors[category] || "bg-gray-100 text-gray-700 border-gray-200";
+  };
 
   const frequencyOptions = [
     { value: "daily", label: "Daily (7x/week)", multiplier: 7 },
@@ -204,57 +195,6 @@ export default function CalculatorPage() {
     setResult(null);
     setSelectedGuide("");
     toast.success("Form reset");
-  };
-
-  const shareCalculation = async () => {
-    if (!result) return;
-
-    const shareText = `Peptide Calculator Results:
-• Total Doses: ${result.totalDoses}
-• Duration: ${result.durationWeeks} weeks
-• Cost per dose: $${result.costPerDose}
-• Injection volume: ${result.injectionVolume}mL
-
-Calculate yours at: ${window.location.href}`;
-
-    try {
-      await navigator.clipboard.writeText(shareText);
-      toast.success("Calculation results copied to clipboard!");
-    } catch (err) {
-      toast.error("Failed to copy results");
-    }
-  };
-
-  const exportResults = () => {
-    if (!result) return;
-
-    const csvData = [
-      ["Parameter", "Value", "Unit"],
-      ["Total Amount", formData.totalAmount, formData.doseUnit],
-      ["Desired Dose", formData.desiredDose, formData.doseUnit],
-      ["Frequency", formData.frequency, "per week"],
-      ["Total Doses", result.totalDoses.toString(), "doses"],
-      ["Duration", result.durationDays.toString(), "days"],
-      ["Duration", result.durationWeeks.toString(), "weeks"],
-      ["Cost per Dose", result.costPerDose.toString(), "USD"],
-      ["Cost per Week", result.costPerWeek.toString(), "USD"],
-      ["Cost per Month", result.costPerMonth.toString(), "USD"],
-      ["Concentration", result.concentration.toString(), "mg/mL"],
-      ["Injection Volume", result.injectionVolume.toString(), "mL"],
-    ];
-
-    const csvContent = csvData.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "peptide-calculation-results.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-
-    toast.success("Results exported successfully!");
   };
 
   const loadDosageGuide = (guideName: string) => {
@@ -337,10 +277,10 @@ Calculate yours at: ${window.location.href}`;
                         setFormData((prev) => ({ ...prev, doseUnit: value }))
                       }
                     >
-                      <SelectTrigger className="w-20 bg-white/70">
+                      <SelectTrigger className="w-20 bg-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="!bg-white">
                         <SelectItem value="mg">mg</SelectItem>
                         <SelectItem value="mcg">mcg</SelectItem>
                       </SelectContent>
@@ -384,10 +324,10 @@ Calculate yours at: ${window.location.href}`;
                       setFormData((prev) => ({ ...prev, frequency: value }))
                     }
                   >
-                    <SelectTrigger className="bg-white/70">
+                    <SelectTrigger className="!bg-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="!bg-white">
                       {frequencyOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
@@ -469,10 +409,10 @@ Calculate yours at: ${window.location.href}`;
                       setFormData((prev) => ({ ...prev, syringeSize: value }))
                     }
                   >
-                    <SelectTrigger className="bg-white/70">
+                    <SelectTrigger className="!bg-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="!bg-white">
                       <SelectItem value="0.3">0.3 mL (30 units)</SelectItem>
                       <SelectItem value="0.5">0.5 mL (50 units)</SelectItem>
                       <SelectItem value="1">1.0 mL (100 units)</SelectItem>
@@ -499,20 +439,6 @@ Calculate yours at: ${window.location.href}`;
                     <Target className="h-6 w-6 text-green-600" />
                     Calculation Results
                   </h3>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={shareCalculation}
-                    >
-                      <Share2 className="h-4 w-4 mr-1" />
-                      Share
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={exportResults}>
-                      <Download className="h-4 w-4 mr-1" />
-                      Export
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -636,40 +562,47 @@ Calculate yours at: ${window.location.href}`;
                 Click on any peptide below to load recommended starting dosages:
               </p>
 
-              <div className="space-y-3">
-                {dosageGuides.map((guide) => (
-                  <div
-                    key={guide.name}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
-                      selectedGuide === guide.name
-                        ? "bg-blue-50 border-blue-200 shadow-md"
-                        : "bg-white/60 border-white/60 hover:bg-white/80"
-                    }`}
-                    onClick={() => loadDosageGuide(guide.name)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-900">
-                        {guide.name}
-                      </h4>
-                      <Badge className={guide.color}>{guide.category}</Badge>
-                    </div>
-                    <div className="text-xs text-gray-600 space-y-1">
-                      <div>
-                        <strong>Starting:</strong> {guide.startingDose}
+              {isLoadingGuides ? (
+                <div className="text-center py-4">
+                  <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-600">Loading guides...</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {dosageGuides.map((guide) => (
+                    <div
+                      key={guide.name}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        selectedGuide === guide.name
+                          ? "bg-blue-50 border-blue-200 shadow-md"
+                          : "bg-white/60 border-white/60 hover:bg-white/80"
+                      }`}
+                      onClick={() => loadDosageGuide(guide.name)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">
+                          {guide.name}
+                        </h4>
+                        <Badge className={guide.color}>{guide.category}</Badge>
                       </div>
-                      <div>
-                        <strong>Maintenance:</strong> {guide.maintenanceDose}
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div>
+                          <strong>Starting:</strong> {guide.startingDose}
+                        </div>
+                        <div>
+                          <strong>Maintenance:</strong> {guide.maintenanceDose}
+                        </div>
+                        <div>
+                          <strong>Frequency:</strong> {guide.frequency}
+                        </div>
                       </div>
-                      <div>
-                        <strong>Frequency:</strong> {guide.frequency}
+                      <div className="mt-2 text-xs text-gray-500 italic">
+                        {guide.notes}
                       </div>
                     </div>
-                    <div className="mt-2 text-xs text-gray-500 italic">
-                      {guide.notes}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               <Separator className="my-6 bg-gray-200/50" />
 
