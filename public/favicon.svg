@@ -1,0 +1,22 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded rectangle background with gradient (similar to rounded-xl) -->
+  <rect width="32" height="32" rx="4" fill="url(#gradient)" />
+  
+  <!-- TestTube2 icon (scaled to fit 32x32, centered) -->
+  <g transform="translate(4, 4)" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Main diagonal test tube path -->
+    <path d="M21 7 6.82 21.18a2.83 2.83 0 0 1-3.99-.01a2.83 2.83 0 0 1 0-4L17 3"/>
+    <!-- Test tube opening -->
+    <path d="m16 2 6 6"/>
+    <!-- Liquid line -->
+    <path d="M12 16H4"/>
+  </g>
+  
+  <!-- Gradient definition matching from-blue-500 to-blue-700 -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+  </defs>
+</svg>
