@@ -184,86 +184,278 @@ export default function StackBuilderPage() {
     );
   };
 
+  // Replace the generateStackTemplates function in your stack builder page with this improved version:
+
   const generateStackTemplates = (peptides: ApiPeptide[]): StackTemplate[] => {
     const templates: StackTemplate[] = [];
 
-    // Group peptides by difficulty and category
-    const beginnerPeptides = peptides.filter(
-      (p) => p.stackDifficulty === "Beginner"
-    );
-    const intermediatePeptides = peptides.filter(
-      (p) => p.stackDifficulty === "Intermediate"
-    );
-    const advancedPeptides = peptides.filter(
-      (p) => p.stackDifficulty === "Advanced"
-    );
+    console.log("🔍 Debugging Template Generation:");
+    console.log("- Total peptides:", peptides.length);
+    console.log("- Categories available:", categories.length);
+    console.log("- Sample peptide:", peptides[0]);
+    console.log("- Sample category:", categories[0]);
+
+    // Check if we have data
+    if (!peptides.length || !categories.length) {
+      console.log("❌ Missing data - peptides or categories empty");
+      return generateFallbackTemplates(peptides);
+    }
 
     // Generate templates for each category
-    categories.forEach((category) => {
-      const categoryPeptides = peptides.filter(
-        (p) => p.category === category.id
+    categories.forEach((category, index) => {
+      console.log(`\n📋 Processing category ${index + 1}:`, category);
+
+      // More flexible category matching - try multiple approaches
+      const categoryPeptides = peptides.filter((p) => {
+        // Try exact match first
+        if (p.category === category.id) return true;
+
+        // Try with category name converted to slug
+        const categorySlug = category.name?.toLowerCase().replace(/\s+/g, "-");
+        if (p.category === categorySlug) return true;
+
+        // Try matching category name directly
+        if (p.category === category.name) return true;
+
+        return false;
+      });
+
+      console.log(
+        `- Found ${categoryPeptides.length} peptides for category:`,
+        category.name
       );
+      console.log(`- Peptide categories found:`, [
+        ...new Set(peptides.map((p) => p.category)),
+      ]);
 
-      if (categoryPeptides.length >= 2) {
-        // Beginner template
-        const beginnerCatPeptides = categoryPeptides
-          .filter((p) => !p.stackDifficulty || p.stackDifficulty === "Beginner")
-          .slice(0, 2);
+      if (categoryPeptides.length >= 1) {
+        // BEGINNER TEMPLATE - Always create if we have any peptides
+        const beginnerPeptides = categoryPeptides.slice(
+          0,
+          Math.min(2, categoryPeptides.length)
+        );
 
-        if (beginnerCatPeptides.length >= 1) {
-          templates.push({
-            id: `beginner-${category.id}`,
-            name: `Beginner ${category.name}`,
-            description: `Simple and effective ${category.name.toLowerCase()} stack for newcomers`,
-            goals: [category.id],
-            peptides: beginnerCatPeptides.map((p) => ({
+        const beginnerTemplate: StackTemplate = {
+          id: `beginner-${
+            category.id || category.name?.toLowerCase().replace(/\s+/g, "-")
+          }`,
+          name: `Beginner ${category.name}`,
+          description: `Simple ${category.name?.toLowerCase()} stack perfect for newcomers`,
+          goals: [category.id || category.name],
+          peptides: beginnerPeptides.map((p) => ({
+            peptideId: p._id,
+            name: p.name,
+            dosage: p.dosages?.[0] || "5mg",
+            duration: p.stackDuration || 8,
+            timing: p.stackTiming || "As directed by research protocols",
+          })),
+          estimatedCost: calculateTemplateCost(beginnerPeptides),
+          difficulty: "Beginner",
+        };
+
+        templates.push(beginnerTemplate);
+        console.log("✅ Added beginner template:", beginnerTemplate.name);
+
+        // INTERMEDIATE TEMPLATE - Create if we have 2+ peptides
+        if (categoryPeptides.length >= 2) {
+          const intermediatePeptides = categoryPeptides.slice(
+            0,
+            Math.min(3, categoryPeptides.length)
+          );
+
+          const intermediateTemplate: StackTemplate = {
+            id: `intermediate-${
+              category.id || category.name?.toLowerCase().replace(/\s+/g, "-")
+            }`,
+            name: `Intermediate ${category.name}`,
+            description: `Enhanced ${category.name?.toLowerCase()} stack for experienced users`,
+            goals: [category.id || category.name],
+            peptides: intermediatePeptides.map((p) => ({
               peptideId: p._id,
               name: p.name,
-              dosage: p.dosages[0] || "5mg",
-              duration: p.stackDuration || 8,
-              timing: p.stackTiming || "As directed",
+              dosage: p.dosages?.[0] || "5mg",
+              duration: p.stackDuration || 10,
+              timing: p.stackTiming || "As directed by research protocols",
             })),
-            estimatedCost: calculateTemplateCost(beginnerCatPeptides),
-            difficulty: "Beginner",
-          });
+            estimatedCost: calculateTemplateCost(intermediatePeptides),
+            difficulty: "Intermediate",
+          };
+
+          templates.push(intermediateTemplate);
+          console.log(
+            "✅ Added intermediate template:",
+            intermediateTemplate.name
+          );
         }
 
-        // Advanced template
-        const advancedCatPeptides = categoryPeptides.slice(0, 3);
-        if (advancedCatPeptides.length >= 2) {
-          templates.push({
-            id: `advanced-${category.id}`,
+        // ADVANCED TEMPLATE - Create if we have 3+ peptides
+        if (categoryPeptides.length >= 3) {
+          const advancedPeptides = categoryPeptides.slice(
+            0,
+            Math.min(4, categoryPeptides.length)
+          );
+
+          const advancedTemplate: StackTemplate = {
+            id: `advanced-${
+              category.id || category.name?.toLowerCase().replace(/\s+/g, "-")
+            }`,
             name: `Advanced ${category.name}`,
-            description: `Comprehensive ${category.name.toLowerCase()} stack for experienced users`,
-            goals: [category.id],
-            peptides: advancedCatPeptides.map((p) => ({
+            description: `Comprehensive ${category.name?.toLowerCase()} stack for experts`,
+            goals: [category.id || category.name],
+            peptides: advancedPeptides.map((p) => ({
               peptideId: p._id,
               name: p.name,
-              dosage: p.dosages[0] || "5mg",
+              dosage:
+                p.dosages?.[Math.min(1, (p.dosages?.length || 1) - 1)] ||
+                p.dosages?.[0] ||
+                "5mg",
               duration: p.stackDuration || 12,
-              timing: p.stackTiming || "As directed",
+              timing: p.stackTiming || "As directed by research protocols",
             })),
-            estimatedCost: calculateTemplateCost(advancedCatPeptides),
+            estimatedCost: calculateTemplateCost(advancedPeptides),
             difficulty: "Advanced",
-          });
+          };
+
+          templates.push(advancedTemplate);
+          console.log("✅ Added advanced template:", advancedTemplate.name);
         }
+      } else {
+        console.log("⚠️ No peptides found for category:", category.name);
       }
     });
+
+    // Add fallback templates if we still have no templates
+    if (templates.length === 0) {
+      console.log("🚨 No templates generated, adding fallbacks");
+      return generateFallbackTemplates(peptides);
+    }
+
+    console.log(`\n🎉 Generated ${templates.length} templates total`);
+    return templates;
+  };
+
+  // Fallback template generation function
+  const generateFallbackTemplates = (
+    peptides: ApiPeptide[]
+  ): StackTemplate[] => {
+    const templates: StackTemplate[] = [];
+
+    if (peptides.length === 0) {
+      console.log("❌ No peptides available for fallback templates");
+      return templates;
+    }
+
+    // Group peptides by category for fallback
+    const peptidesByCategory: Record<string, ApiPeptide[]> = {};
+    peptides.forEach((peptide) => {
+      const category = peptide.category || "general";
+      if (!peptidesByCategory[category]) {
+        peptidesByCategory[category] = [];
+      }
+      peptidesByCategory[category].push(peptide);
+    });
+
+    console.log(
+      "📦 Fallback: Grouped peptides by category:",
+      Object.keys(peptidesByCategory)
+    );
+
+    // Create at least one template per category that has peptides
+    Object.entries(peptidesByCategory).forEach(
+      ([categoryKey, categoryPeptides]) => {
+        if (categoryPeptides.length > 0) {
+          const categoryName = categoryKey
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
+
+          const fallbackTemplate: StackTemplate = {
+            id: `fallback-${categoryKey}`,
+            name: `${categoryName} Stack`,
+            description: `Effective ${categoryName.toLowerCase()} peptide combination`,
+            goals: [categoryKey],
+            peptides: categoryPeptides.slice(0, 2).map((p) => ({
+              peptideId: p._id,
+              name: p.name,
+              dosage: p.dosages?.[0] || "5mg",
+              duration: 8,
+              timing: "As directed",
+            })),
+            estimatedCost: calculateTemplateCost(categoryPeptides.slice(0, 2)),
+            difficulty: "Beginner",
+          };
+
+          templates.push(fallbackTemplate);
+          console.log("✅ Added fallback template:", fallbackTemplate.name);
+        }
+      }
+    );
+
+    // If still no templates, create a general one
+    if (templates.length === 0 && peptides.length > 0) {
+      const generalTemplate: StackTemplate = {
+        id: "general-starter",
+        name: "Starter Research Stack",
+        description: "General peptide research combination for beginners",
+        goals: ["general"],
+        peptides: peptides.slice(0, 2).map((p) => ({
+          peptideId: p._id,
+          name: p.name,
+          dosage: p.dosages?.[0] || "5mg",
+          duration: 8,
+          timing: "As directed",
+        })),
+        estimatedCost: calculateTemplateCost(peptides.slice(0, 2)),
+        difficulty: "Beginner",
+      };
+
+      templates.push(generalTemplate);
+      console.log("✅ Added general fallback template");
+    }
 
     return templates;
   };
 
   const calculateTemplateCost = (peptides: ApiPeptide[]): number => {
+    if (!peptides || peptides.length === 0) {
+      return 0;
+    }
+
     return peptides.reduce((total, peptide) => {
-      if (peptide.retailers.length > 0) {
-        const avgPrice =
-          peptide.retailers.reduce(
-            (sum, r) => sum + (r.discounted_price || r.price),
-            0
-          ) / peptide.retailers.length;
-        return total + avgPrice;
+      // Check if peptide has retailers
+      if (!peptide.retailers || peptide.retailers.length === 0) {
+        console.log(`⚠️ Peptide ${peptide.name} has no retailers`);
+        return total; // Skip peptides without retailers
       }
-      return total;
+
+      try {
+        // Calculate average price across all retailers for this peptide
+        const retailerPrices = peptide.retailers
+          .filter((retailer) => retailer.price > 0) // Only consider retailers with valid prices
+          .map((retailer) => retailer.discounted_price || retailer.price);
+
+        if (retailerPrices.length === 0) {
+          console.log(`⚠️ Peptide ${peptide.name} has no valid prices`);
+          return total;
+        }
+
+        const avgPrice =
+          retailerPrices.reduce((sum, price) => sum + price, 0) /
+          retailerPrices.length;
+        console.log(
+          `💰 ${peptide.name}: $${avgPrice.toFixed(2)} (from ${
+            retailerPrices.length
+          } retailers)`
+        );
+
+        return total + avgPrice;
+      } catch (error) {
+        console.error(
+          `Error calculating cost for peptide ${peptide.name}:`,
+          error
+        );
+        return total;
+      }
     }, 0);
   };
 
