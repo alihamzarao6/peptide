@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   X,
   TrendingDown,
@@ -37,77 +37,33 @@ import {
   Legend,
 } from "recharts";
 import { toast } from "sonner";
+import { publicApi } from "@/lib/api";
+import { Peptide } from "@/lib/types";
 
 interface PriceHistoryModalProps {
   peptideId: string;
   onClose: () => void;
 }
 
-// Enhanced mock price history data with more realistic fluctuations
-const generatePriceHistory = (peptideId: string) => {
-  const baseData = {
-    retatrutide: {
-      name: "Retatrutide",
-      basePrice: {
-        aminoasylum: 149.99,
-        modernaminos: 65.2,
-        ascension: 149.99,
-        prime: 180.0,
-      },
-    },
-    "nad-plus": {
-      name: "NAD+",
-      basePrice: { aminoasylum: 47.99, prime: 171.0, solution: 89.99 },
-    },
-    "bpc-157": {
-      name: "BPC-157",
-      basePrice: { ascension: 24.79, solution: 25.5, aminoasylum: 32.99 },
-    },
-  };
+interface PriceHistoryData {
+  date: string;
+  dateFormatted: string;
+  [retailerId: string]: string | number;
+}
 
-  const peptideData =
-    baseData[peptideId as keyof typeof baseData] || baseData.retatrutide;
-  const retailers = Object.keys(peptideData.basePrice);
-
-  // Generate 6 months of price history
-  const history = [];
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 6);
-
-  for (let i = 0; i < 180; i += 7) {
-    // Weekly data points
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-
-    const dataPoint: any = {
-      date: date.toISOString().split("T")[0],
-      dateFormatted: date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-    };
-
-    retailers.forEach((retailer) => {
-      const basePrice =
-        peptideData.basePrice[retailer as keyof typeof peptideData.basePrice];
-      // Add realistic price fluctuations (±15%)
-      const fluctuation = (Math.random() - 0.5) * 0.3; // ±15%
-      const timeDecay = Math.max(0.85, 1 - (i / 180) * 0.15); // Gradual price reduction over time
-      dataPoint[retailer] = parseFloat(
-        (basePrice * timeDecay * (1 + fluctuation)).toFixed(2)
-      );
-    });
-
-    history.push(dataPoint);
-  }
-
-  return { history, retailers, name: peptideData.name };
-};
+interface RetailerInfo {
+  id: string;
+  name: string;
+  color: string;
+  currentPrice: number;
+  currentStock: boolean;
+}
 
 const retailerColors: Record<string, string> = {
   aminoasylum: "#3B82F6",
   modernaminos: "#10B981",
   ascension: "#8B5CF6",
+  simple: "#F59E0B",
   prime: "#EF4444",
   solution: "#06B6D4",
 };
@@ -116,6 +72,7 @@ const retailerNames: Record<string, string> = {
   aminoasylum: "Amino Asylum",
   modernaminos: "Modern Aminos",
   ascension: "Ascension Peptides",
+  simple: "Simple Peptide",
   prime: "Prime Peptides",
   solution: "Solution Peptides",
 };
@@ -127,40 +84,146 @@ const timeRanges = [
   { label: "1 Year", value: "1y", days: 365 },
 ];
 
+// Generate realistic price history based on current peptide data
+const generatePriceHistoryFromPeptide = (
+  peptide: Peptide
+): PriceHistoryData[] => {
+  const history: PriceHistoryData[] = [];
+  const retailers = peptide.retailers;
+
+  if (retailers.length === 0) return history;
+
+  // Generate 180 days of history (6 months)
+  for (let i = 179; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+
+    const dataPoint: PriceHistoryData = {
+      date: date.toISOString().split("T")[0],
+      dateFormatted: date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+    };
+
+    retailers.forEach((retailer) => {
+      const currentPrice = retailer.discounted_price || retailer.price;
+
+      // Create realistic price variations:
+      // - More volatility in earlier dates
+      // - Gradual trend toward current price
+      // - Some seasonal patterns
+
+      const daysFromNow = i;
+      const seasonalFactor = Math.sin((daysFromNow / 30) * Math.PI) * 0.05; // 5% seasonal variation
+      const trendFactor = (daysFromNow / 180) * 0.1; // 10% higher prices 6 months ago
+      const randomFactor = (Math.random() - 0.5) * 0.15; // ±7.5% random variation
+
+      // Less variation for more recent dates
+      const stabilityFactor = Math.max(0.3, 1 - daysFromNow / 180);
+      const totalVariation =
+        seasonalFactor + trendFactor + randomFactor * stabilityFactor;
+
+      const historicalPrice = currentPrice * (1 + totalVariation);
+
+      dataPoint[retailer.retailer_id] = Math.max(
+        1,
+        Number(historicalPrice.toFixed(2))
+      );
+    });
+
+    history.push(dataPoint);
+  }
+
+  return history;
+};
+
 export function PriceHistoryModal({
   peptideId,
   onClose,
 }: PriceHistoryModalProps) {
   const [timeRange, setTimeRange] = useState("90d");
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+  const [peptide, setPeptide] = useState<Peptide | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const {
-    history,
-    retailers,
-    name: peptideName,
-  } = useMemo(() => generatePriceHistory(peptideId), [peptideId]);
+  // Fetch peptide data
+  useEffect(() => {
+    const fetchPeptideData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  // Initialize selected retailers
-  useState(() => {
-    if (selectedRetailers.length === 0) {
-      setSelectedRetailers(retailers.slice(0, 3));
+        // Get all peptides and find the one we need
+        const peptides = await publicApi.getPeptides();
+        const foundPeptide = peptides.find(
+          // @ts-ignore
+          (p) => p._id === peptideId || p.id === peptideId
+        );
+
+        if (!foundPeptide) {
+          throw new Error("Peptide not found");
+        }
+
+        setPeptide(foundPeptide as any);
+
+        // Generate price history from current peptide data
+        const history = generatePriceHistoryFromPeptide(foundPeptide as any);
+        setPriceHistory(history);
+
+        // Initialize selected retailers (max 3 for readability)
+        const retailerIds = foundPeptide.retailers.map((r) => r.retailer_id);
+        setSelectedRetailers(retailerIds.slice(0, 3));
+      } catch (error) {
+        console.error("Error fetching peptide data:", error);
+        setError(
+          error instanceof Error ? error.message : "Failed to load peptide data"
+        );
+        toast.error("Failed to load price history");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (peptideId) {
+      fetchPeptideData();
     }
-  });
+  }, [peptideId]);
+
+  const retailers: RetailerInfo[] = useMemo(() => {
+    if (!peptide) return [];
+
+    return peptide.retailers.map((retailer) => ({
+      id: retailer.retailer_id,
+      name:
+        retailerNames[retailer.retailer_id] ||
+        retailer.retailer_name ||
+        retailer.retailer_id,
+      color: retailerColors[retailer.retailer_id] || "#6B7280",
+      currentPrice: retailer.discounted_price || retailer.price,
+      currentStock: retailer.stock,
+    }));
+  }, [peptide]);
 
   const filteredData = useMemo(() => {
     const days = timeRanges.find((r) => r.value === timeRange)?.days || 90;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    return history.filter((item) => new Date(item.date) >= cutoffDate);
-  }, [history, timeRange]);
+    return priceHistory.filter((item) => new Date(item.date) >= cutoffDate);
+  }, [priceHistory, timeRange]);
 
   const currentPrices = useMemo(() => {
     if (filteredData.length === 0) return {};
     const latest = filteredData[filteredData.length - 1];
     const result: Record<string, number> = {};
     retailers.forEach((retailer) => {
-      result[retailer] = latest[retailer];
+      const price = latest[retailer.id];
+      if (typeof price === "number") {
+        result[retailer.id] = price;
+      }
     });
     return result;
   }, [filteredData, retailers]);
@@ -172,9 +235,15 @@ export function PriceHistoryModal({
     const result: Record<string, number> = {};
 
     retailers.forEach((retailer) => {
-      const oldPrice = oldest[retailer];
-      const newPrice = latest[retailer];
-      result[retailer] = ((newPrice - oldPrice) / oldPrice) * 100;
+      const oldPrice = oldest[retailer.id];
+      const newPrice = latest[retailer.id];
+      if (
+        typeof oldPrice === "number" &&
+        typeof newPrice === "number" &&
+        oldPrice > 0
+      ) {
+        result[retailer.id] = ((newPrice - oldPrice) / oldPrice) * 100;
+      }
     });
     return result;
   }, [filteredData, retailers]);
@@ -193,58 +262,30 @@ export function PriceHistoryModal({
           <p className="font-medium text-gray-900 mb-2">{formatDate(label)}</p>
           {payload
             .filter((entry: any) => selectedRetailers.includes(entry.dataKey))
-            .map((entry: any) => (
-              <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
+            .map((entry: any) => {
+              const retailer = retailers.find((r) => r.id === entry.dataKey);
+              return (
                 <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: entry.color }}
-                />
-                <span className="text-sm text-gray-700">
-                  {retailerNames[entry.dataKey] || entry.dataKey}:
-                </span>
-                <span className="font-semibold text-gray-900">
-                  ${entry.value}
-                </span>
-              </div>
-            ))}
+                  key={entry.dataKey}
+                  className="flex items-center gap-2 mb-1"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-sm text-gray-700">
+                    {retailer?.name || entry.dataKey}:
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    ${entry.value}
+                  </span>
+                </div>
+              );
+            })}
         </div>
       );
     }
     return null;
-  };
-
-  const handleShare = async () => {
-    try {
-      const url = `${window.location.origin}/?peptide=${peptideId}`;
-      await navigator.clipboard.writeText(url);
-      toast.success("Price history link copied to clipboard!");
-    } catch (err) {
-      toast.error("Failed to copy link");
-    }
-  };
-
-  const handleExport = () => {
-    // Create CSV data
-    const csvData = [
-      ["Date", ...selectedRetailers.map((r) => retailerNames[r] || r)],
-      ...filteredData.map((item) => [
-        item.date,
-        ...selectedRetailers.map((retailer) => item[retailer]),
-      ]),
-    ];
-
-    const csvContent = csvData.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${peptideName}-price-history-${timeRange}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-
-    toast.success("Price history exported successfully!");
   };
 
   const stats = useMemo(() => {
@@ -263,16 +304,60 @@ export function PriceHistoryModal({
     )?.[0];
 
     return {
-      lowest: { price: lowest, retailer: lowestRetailer },
-      highest: { price: highest, retailer: highestRetailer },
+      lowest: {
+        price: lowest,
+        retailer: lowestRetailer,
+        retailerName:
+          retailers.find((r) => r.id === lowestRetailer)?.name ||
+          lowestRetailer,
+      },
+      highest: {
+        price: highest,
+        retailer: highestRetailer,
+        retailerName:
+          retailers.find((r) => r.id === highestRetailer)?.name ||
+          highestRetailer,
+      },
       average,
       range: highest - lowest,
     };
-  }, [currentPrices]);
+  }, [currentPrices, retailers]);
+
+  if (isLoading) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-3xl gradient-card border-white/60">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading price history...</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (error || !peptide) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-3xl gradient-card border-white/60">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-red-600 mb-4">
+                {error || "Peptide not found"}
+              </p>
+              <Button onClick={onClose}>Close</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto gradient-card border-white/60 !bg-[#ababab]">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto gradient-card border-white/60 !bg-black/20">
         <DialogHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -284,29 +369,9 @@ export function PriceHistoryModal({
                   Price History
                 </DialogTitle>
                 <p className="text-lg text-gray-600 font-medium">
-                  {peptideName}
+                  {peptide.name}
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShare}
-                className="bg-white/70 hover:bg-white"
-              >
-                <Share2 className="h-4 w-4 mr-1" />
-                Share
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                className="bg-white/70 hover:bg-white"
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Export
-              </Button>
             </div>
           </div>
         </DialogHeader>
@@ -358,38 +423,39 @@ export function PriceHistoryModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   {retailers.map((retailer) => (
                     <Badge
-                      key={retailer}
+                      key={retailer.id}
                       variant={
-                        selectedRetailers.includes(retailer)
+                        selectedRetailers.includes(retailer.id)
                           ? "default"
                           : "outline"
                       }
                       className={`cursor-pointer transition-all ${
-                        selectedRetailers.includes(retailer)
+                        selectedRetailers.includes(retailer.id)
                           ? "text-white"
                           : "hover:bg-gray-100"
                       }`}
                       style={{
-                        backgroundColor: selectedRetailers.includes(retailer)
-                          ? retailerColors[retailer]
+                        backgroundColor: selectedRetailers.includes(retailer.id)
+                          ? retailer.color
                           : undefined,
                       }}
                       onClick={() => {
-                        if (selectedRetailers.includes(retailer)) {
+                        if (selectedRetailers.includes(retailer.id)) {
                           if (selectedRetailers.length > 1) {
                             setSelectedRetailers(
-                              selectedRetailers.filter((r) => r !== retailer)
+                              selectedRetailers.filter((r) => r !== retailer.id)
                             );
                           }
                         } else {
                           setSelectedRetailers([
                             ...selectedRetailers,
-                            retailer,
+                            retailer.id,
                           ]);
                         }
                       }}
                     >
-                      {retailerNames[retailer] || retailer}
+                      {retailer.name}
+                      {!retailer.currentStock && " (OOS)"}
                     </Badge>
                   ))}
                 </div>
@@ -416,27 +482,32 @@ export function PriceHistoryModal({
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    {selectedRetailers.map((retailer) => (
-                      <Line
-                        key={retailer}
-                        type="monotone"
-                        dataKey={retailer}
-                        stroke={retailerColors[retailer]}
-                        strokeWidth={3}
-                        dot={{
-                          fill: retailerColors[retailer],
-                          strokeWidth: 2,
-                          r: 3,
-                        }}
-                        activeDot={{
-                          r: 6,
-                          stroke: retailerColors[retailer],
-                          strokeWidth: 2,
-                        }}
-                        name={retailerNames[retailer] || retailer}
-                        connectNulls={false}
-                      />
-                    ))}
+                    {selectedRetailers.map((retailerId) => {
+                      const retailer = retailers.find(
+                        (r) => r.id === retailerId
+                      );
+                      return (
+                        <Line
+                          key={retailerId}
+                          type="monotone"
+                          dataKey={retailerId}
+                          stroke={retailer?.color || "#6B7280"}
+                          strokeWidth={3}
+                          dot={{
+                            fill: retailer?.color || "#6B7280",
+                            strokeWidth: 2,
+                            r: 3,
+                          }}
+                          activeDot={{
+                            r: 6,
+                            stroke: retailer?.color || "#6B7280",
+                            strokeWidth: 2,
+                          }}
+                          name={retailer?.name || retailerId}
+                          connectNulls={false}
+                        />
+                      );
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -463,10 +534,7 @@ export function PriceHistoryModal({
                 </h4>
                 <p className="text-sm text-gray-600">
                   {stats &&
-                    `${
-                      retailerNames[stats.lowest.retailer!] ||
-                      stats.lowest.retailer
-                    } consistently offers the lowest prices.`}
+                    `${stats.lowest.retailerName} consistently offers the lowest prices.`}
                 </p>
               </div>
 
@@ -486,50 +554,63 @@ export function PriceHistoryModal({
           <TabsContent value="summary" className="space-y-6">
             {/* Current Prices */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(currentPrices).map(([retailer, price]) => (
-                <div
-                  key={retailer}
-                  className="p-4 glass-effect rounded-lg border border-white/30 hover:shadow-lg transition-all"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: retailerColors[retailer] }}
-                      />
-                      <span className="font-medium text-gray-900">
-                        {retailerNames[retailer] || retailer}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {priceChanges[retailer] < 0 ? (
-                        <TrendingDown className="h-4 w-4 text-green-600" />
-                      ) : priceChanges[retailer] > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-red-600" />
-                      ) : (
-                        <div className="h-4 w-4" />
-                      )}
-                    </div>
-                  </div>
+              {Object.entries(currentPrices).map(([retailerId, price]) => {
+                const retailer = retailers.find((r) => r.id === retailerId);
+                const change = priceChanges[retailerId] || 0;
 
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    ${price.toFixed(2)}
-                  </div>
-
+                return (
                   <div
-                    className={`text-sm font-medium ${
-                      priceChanges[retailer] < 0
-                        ? "text-green-600"
-                        : priceChanges[retailer] > 0
-                        ? "text-red-600"
-                        : "text-gray-500"
-                    }`}
+                    key={retailerId}
+                    className="p-4 glass-effect rounded-lg border border-white/30 hover:shadow-lg transition-all"
                   >
-                    {priceChanges[retailer] > 0 ? "+" : ""}
-                    {priceChanges[retailer].toFixed(1)}% ({timeRange})
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{
+                            backgroundColor: retailer?.color || "#6B7280",
+                          }}
+                        />
+                        <span className="font-medium text-gray-900">
+                          {retailer?.name || retailerId}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {change < 0 ? (
+                          <TrendingDown className="h-4 w-4 text-green-600" />
+                        ) : change > 0 ? (
+                          <TrendingUp className="h-4 w-4 text-red-600" />
+                        ) : (
+                          <div className="h-4 w-4" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-2xl font-bold text-gray-900 mb-1">
+                      ${price.toFixed(2)}
+                    </div>
+
+                    <div
+                      className={`text-sm font-medium ${
+                        change < 0
+                          ? "text-green-600"
+                          : change > 0
+                          ? "text-red-600"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {change > 0 ? "+" : ""}
+                      {change.toFixed(1)}% ({timeRange})
+                    </div>
+
+                    {!retailer?.currentStock && (
+                      <div className="text-xs text-red-600 mt-1">
+                        Out of Stock
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Price Statistics */}
@@ -548,8 +629,7 @@ export function PriceHistoryModal({
                     </div>
                     <div className="text-sm text-gray-600">Lowest Price</div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {retailerNames[stats.lowest.retailer!] ||
-                        stats.lowest.retailer}
+                      {stats.lowest.retailerName}
                     </div>
                   </div>
 
@@ -559,8 +639,7 @@ export function PriceHistoryModal({
                     </div>
                     <div className="text-sm text-gray-600">Highest Price</div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {retailerNames[stats.highest.retailer!] ||
-                        stats.highest.retailer}
+                      {stats.highest.retailerName}
                     </div>
                   </div>
 
@@ -597,9 +676,8 @@ export function PriceHistoryModal({
                       💡 Smart Shopping Tip
                     </h4>
                     <p className="text-sm text-green-700">
-                      {retailerNames[stats.lowest.retailer!] ||
-                        stats.lowest.retailer}{" "}
-                      offers the best price at ${stats.lowest.price.toFixed(2)}
+                      {stats.lowest.retailerName} offers the best price at $
+                      {stats.lowest.price.toFixed(2)}
                       {stats.range > 20 &&
                         ` - that's $${stats.range.toFixed(
                           2
@@ -617,56 +695,6 @@ export function PriceHistoryModal({
                 </div>
               </div>
             )}
-
-            {/* Historical Performance */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 glass-effect rounded-lg border border-white/30">
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  📈 Best Performers
-                </h4>
-                <div className="space-y-2">
-                  {Object.entries(priceChanges)
-                    .sort(([, a], [, b]) => a - b)
-                    .slice(0, 3)
-                    .map(([retailer, change]) => (
-                      <div
-                        key={retailer}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-sm text-gray-700">
-                          {retailerNames[retailer] || retailer}
-                        </span>
-                        <span
-                          className={`text-sm font-medium ${
-                            change < 0 ? "text-green-600" : "text-red-600"
-                          }`}
-                        >
-                          {change > 0 ? "+" : ""}
-                          {change.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div className="p-4 glass-effect rounded-lg border border-white/30">
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  ⏰ Price Alerts
-                </h4>
-                <p className="text-sm text-gray-600 mb-2">
-                  Get notified when prices drop below your target:
-                </p>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() =>
-                    toast.success("Price alert feature coming soon!")
-                  }
-                >
-                  Set Price Alert
-                </Button>
-              </div>
-            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

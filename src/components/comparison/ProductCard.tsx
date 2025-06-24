@@ -173,7 +173,7 @@ export function ProductCard({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onPriceHistoryClick(peptide.id)}
+            onClick={() => onPriceHistoryClick(peptide._id || peptide.id)}
             className="shrink-0 ml-4 bg-white/70 hover:bg-white border-gray-200 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 cursor-pointer"
           >
             <TrendingUp className="h-4 w-4 mr-1" />
