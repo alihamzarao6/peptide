@@ -23,45 +23,17 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Peptide } from "@/lib/types";
 import { toast } from "sonner";
+import {
+  useRetailerData,
+  useCategoryData,
+  getCategoryIcon,
+  getCategoryColor,
+} from "@/lib/dynamicUtils";
 
 interface ProductCardProps {
   peptide: Peptide;
   onPriceHistoryClick: (peptideId: string) => void;
 }
-
-const categoryIcons: Record<string, any> = {
-  "fat-loss": Zap,
-  healing: Heart,
-  "growth-hormone": TrendingUp,
-  "anti-aging": Clock,
-  nootropic: Brain,
-};
-
-const categoryColors: Record<string, string> = {
-  "fat-loss": "bg-red-100 text-red-700 border-red-200",
-  healing: "bg-green-100 text-green-700 border-green-200",
-  "growth-hormone": "bg-blue-100 text-blue-700 border-blue-200",
-  "anti-aging": "bg-purple-100 text-purple-700 border-purple-200",
-  nootropic: "bg-yellow-100 text-yellow-700 border-yellow-200",
-};
-
-const retailerColors: Record<string, string> = {
-  aminoasylum: "from-blue-500 to-blue-600",
-  modernaminos: "from-green-500 to-green-600",
-  ascension: "from-purple-500 to-purple-600",
-  simple: "from-amber-500 to-amber-600",
-  prime: "from-red-500 to-red-600",
-  solution: "from-cyan-500 to-cyan-600",
-};
-
-const retailerNames: Record<string, string> = {
-  aminoasylum: "Amino Asylum",
-  modernaminos: "Modern Aminos",
-  ascension: "Ascension Peptides",
-  simple: "Simple Peptide",
-  prime: "Prime Peptides",
-  solution: "Solution Peptides",
-};
 
 export function ProductCard({
   peptide,
@@ -70,6 +42,8 @@ export function ProductCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAllRetailers, setShowAllRetailers] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
+
+  const { getRetailerColor, getRetailerName } = useRetailerData([peptide]);
 
   const visibleRetailers = showAllRetailers
     ? peptide.retailers
@@ -83,7 +57,7 @@ export function ProductCard({
     (r) => (r.discounted_price || r.price) === bestPrice
   );
 
-  const CategoryIcon = categoryIcons[peptide.category] || Target;
+  const CategoryIcon = getCategoryIcon(peptide.category);
 
   const copyCode = async (code: string, retailerName: string) => {
     try {
@@ -94,10 +68,6 @@ export function ProductCard({
     } catch (err) {
       toast.error("Failed to copy code");
     }
-  };
-
-  const formatRetailerName = (id: string): string => {
-    return retailerNames[id] || id.replace(/([A-Z])/g, " $1").trim();
   };
 
   const calculatePerMgPrice = (price: number, size: string): number => {
@@ -116,10 +86,7 @@ export function ProductCard({
                 {peptide.name}
               </h3>
               <Badge
-                className={`${
-                  categoryColors[peptide.category] ||
-                  "bg-gray-100 text-gray-700 border-gray-200"
-                } font-medium`}
+                className={`${getCategoryColor(peptide.category)} font-medium`}
               >
                 {/* <CategoryIcon className="h-3 w-3 mr-1" /> */}
                 {peptide.category
@@ -232,16 +199,15 @@ export function ProductCard({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1">
                   <div
-                    className={`w-3 h-3 rounded-full bg-gradient-to-r ${
-                      retailerColors[retailer.retailer_id] ||
-                      "from-gray-400 to-gray-500"
-                    }`}
+                    className={`w-3 h-3 rounded-full bg-gradient-to-r ${getRetailerColor(
+                      retailer.retailer_id
+                    )}`}
                   ></div>
 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-gray-900">
-                        {formatRetailerName(retailer.retailer_id)}
+                        {getRetailerName(retailer.retailer_id)}
                       </span>
                       <div className="flex items-center gap-1">
                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
@@ -276,7 +242,7 @@ export function ProductCard({
                           onClick={() =>
                             copyCode(
                               retailer.coupon_code!,
-                              formatRetailerName(retailer.retailer_id)
+                              getRetailerName(retailer.retailer_id)
                             )
                           }
                           className="h-5 px-2 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer"
@@ -325,15 +291,14 @@ export function ProductCard({
 
                   <Button
                     size="sm"
-                    className={`bg-gradient-to-r ${
-                      retailerColors[retailer.retailer_id] ||
-                      "from-gray-500 to-gray-600"
-                    } hover:shadow-lg transition-all duration-300 group-hover/retailer:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                    className={`bg-gradient-to-r ${getRetailerColor(
+                      retailer.retailer_id
+                    )} hover:shadow-lg transition-all duration-300 group-hover/retailer:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
                     disabled={!retailer.stock}
                     onClick={() => {
                       window.open(retailer.affiliate_url, "_blank");
                       toast.success(
-                        `Redirecting to ${formatRetailerName(
+                        `Redirecting to ${getRetailerName(
                           retailer.retailer_id
                         )}...`
                       );
@@ -385,7 +350,7 @@ export function ProductCard({
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium text-green-800">
                   Best Price: ${bestPrice} at{" "}
-                  {formatRetailerName(bestValueRetailer.retailer_id)}
+                  {getRetailerName(bestValueRetailer.retailer_id)}
                 </span>
               </div>
               <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">

@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { publicApi } from "@/lib/api";
+import { useRetailerData, useCategoryData } from "@/lib/dynamicUtils";
 
 interface CalculationResult {
   totalDoses: number;
@@ -42,45 +43,115 @@ interface CalculationResult {
 }
 
 interface DosageGuide {
+  _id: string;
   name: string;
   category: string;
   startingDose: string;
   maintenanceDose: string;
   frequency: string;
-  notes: string;
+  dosageNotes: string;
+  unit: "mg" | "mcg" | "iu";
+  dosages: string[];
+  retailers: Array<{
+    retailer_id: string;
+    retailer_name: string;
+    price: number;
+    discounted_price?: number;
+    size: string;
+    stock: boolean;
+  }>;
   color: string;
+}
+
+interface PeptideData {
+  _id: string;
+  name: string;
+  category: string;
+  unit: "mg" | "mcg" | "iu";
+  dosages: string[];
+  startingDose?: string;
+  maintenanceDose?: string;
+  frequency?: string;
+  dosageNotes?: string;
+  retailers: Array<{
+    retailer_id: string;
+    retailer_name: string;
+    price: number;
+    discounted_price?: number;
+    size: string;
+    stock: boolean;
+    affiliate_url: string;
+    coupon_code?: string;
+  }>;
 }
 
 export default function CalculatorPage() {
   const [formData, setFormData] = useState({
+    selectedPeptide: "",
     totalAmount: "",
     desiredDose: "",
-    doseUnit: "mg",
+    doseUnit: "mg" as "mg" | "mcg" | "iu",
     frequency: "daily",
     customFrequency: "",
     productPrice: "",
     reconstitutionVolume: "2", // mL
     syringeSize: "1", // mL
+    selectedRetailer: "",
+    selectedSize: "",
   });
 
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [selectedGuide, setSelectedGuide] = useState<string>("");
   const [dosageGuides, setDosageGuides] = useState<DosageGuide[]>([]);
+  const [allPeptides, setAllPeptides] = useState<PeptideData[]>([]);
   const [isLoadingGuides, setIsLoadingGuides] = useState(true);
+  const [availableRetailers, setAvailableRetailers] = useState<
+    Array<{
+      retailer_id: string;
+      retailer_name: string;
+      price: number;
+      discounted_price?: number;
+      size: string;
+      stock: boolean;
+      affiliate_url: string;
+      coupon_code?: string;
+    }>
+  >([]);
 
-  // Fetch dosage guides from API
+  const { getCategoryColor } = useCategoryData(allPeptides);
+
+  // Fetch peptides and create dosage guides
   useEffect(() => {
     const fetchDosageGuides = async () => {
       try {
         setIsLoadingGuides(true);
-        const guides = await publicApi.getPeptides();
+        const peptides = await publicApi.getPeptides();
 
-        // Transform peptides into dosage guides
-        const dosageGuidesData: DosageGuide[] = guides
+        // Store all peptides for selection, ensuring retailer_name is always a string
+        setAllPeptides(
+          peptides.map((peptide: any) => ({
+            ...peptide,
+            retailers: (peptide.retailers || []).map((retailer: any) => ({
+              ...retailer,
+              retailer_name: retailer.retailer_name ?? "",
+              affiliate_url: retailer.affiliate_url ?? "",
+              size: retailer.size ?? "",
+              retailer_id: retailer.retailer_id ?? "",
+              price: retailer.price ?? 0,
+              stock: retailer.stock ?? false,
+            })),
+          }))
+        );
+
+        // Transform peptides into dosage guides (only those with calculator data)
+        const dosageGuidesData: DosageGuide[] = peptides
           .filter(
-            (peptide: any) => peptide.startingDose && peptide.maintenanceDose
+            (peptide: any) =>
+              (peptide.startingDose && peptide.maintenanceDose) ||
+              (peptide.dosages && peptide.dosages.length > 0)
           )
           .map((peptide: any) => ({
+            _id: peptide._id,
             name: peptide.name,
             category: peptide.category
               .split("-")
@@ -88,16 +159,22 @@ export default function CalculatorPage() {
                 (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
               )
               .join(" "),
-            startingDose: peptide.startingDose,
-            maintenanceDose: peptide.maintenanceDose,
-            frequency: peptide.frequency || "As directed",
-            notes: peptide.dosageNotes || "No specific notes available",
+            startingDose:
+              peptide.startingDose || `${peptide.dosages[0] || "5mg"}`,
+            maintenanceDose:
+              peptide.maintenanceDose || `${peptide.dosages[0] || "5mg"}`,
+            frequency: peptide.frequency || "Daily",
+            dosageNotes: peptide.dosageNotes || "Follow standard protocols",
+            unit: peptide.unit || "mg",
+            dosages: peptide.dosages || [],
+            retailers: peptide.retailers || [],
             color: getCategoryColor(peptide.category),
           }));
 
         setDosageGuides(dosageGuidesData);
       } catch (error) {
         console.error("Error fetching dosage guides:", error);
+        toast.error("Failed to load peptide data");
       } finally {
         setIsLoadingGuides(false);
       }
@@ -106,16 +183,33 @@ export default function CalculatorPage() {
     fetchDosageGuides();
   }, []);
 
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      "fat-loss": "bg-red-100 text-red-700 border-red-200",
-      healing: "bg-green-100 text-green-700 border-green-200",
-      "growth-hormone": "bg-blue-100 text-blue-700 border-blue-200",
-      "anti-aging": "bg-purple-100 text-purple-700 border-purple-200",
-      nootropic: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    };
-    return colors[category] || "bg-gray-100 text-gray-700 border-gray-200";
-  };
+  // Update available retailers when peptide is selected
+  useEffect(() => {
+    if (formData.selectedPeptide) {
+      const selectedPeptide = allPeptides.find(
+        (p) => p._id === formData.selectedPeptide
+      );
+      if (selectedPeptide) {
+        setAvailableRetailers(selectedPeptide.retailers);
+
+        // Auto-select first available retailer and size
+        if (selectedPeptide.retailers.length > 0) {
+          const firstRetailer = selectedPeptide.retailers[0];
+          setFormData((prev) => ({
+            ...prev,
+            selectedRetailer: `${firstRetailer.retailer_id}-${firstRetailer.size}`,
+            selectedSize: firstRetailer.size,
+            productPrice: (
+              firstRetailer.discounted_price || firstRetailer.price
+            ).toString(),
+            doseUnit: selectedPeptide.unit,
+          }));
+        }
+      }
+    } else {
+      setAvailableRetailers([]);
+    }
+  }, [formData.selectedPeptide, allPeptides]);
 
   const frequencyOptions = [
     { value: "daily", label: "Daily (7x/week)", multiplier: 7 },
@@ -130,7 +224,6 @@ export default function CalculatorPage() {
     const desiredDoseNum = parseFloat(formData.desiredDose);
     const productPriceNum = parseFloat(formData.productPrice);
     const reconstitutionVolumeNum = parseFloat(formData.reconstitutionVolume);
-    const syringeSizeNum = parseFloat(formData.syringeSize);
 
     if (!totalAmountNum || !desiredDoseNum) {
       toast.error("Please enter valid amounts");
@@ -139,9 +232,17 @@ export default function CalculatorPage() {
 
     // Convert units if necessary
     const totalAmountInMg =
-      formData.doseUnit === "mcg" ? totalAmountNum / 1000 : totalAmountNum;
+      formData.doseUnit === "mcg"
+        ? totalAmountNum / 1000
+        : formData.doseUnit === "iu"
+        ? totalAmountNum
+        : totalAmountNum;
     const desiredDoseInMg =
-      formData.doseUnit === "mcg" ? desiredDoseNum / 1000 : desiredDoseNum;
+      formData.doseUnit === "mcg"
+        ? desiredDoseNum / 1000
+        : formData.doseUnit === "iu"
+        ? desiredDoseNum
+        : desiredDoseNum;
 
     // Get frequency multiplier
     let frequencyMultiplier = 7; // daily default
@@ -183,6 +284,7 @@ export default function CalculatorPage() {
 
   const resetForm = () => {
     setFormData({
+      selectedPeptide: "",
       totalAmount: "",
       desiredDose: "",
       doseUnit: "mg",
@@ -191,28 +293,107 @@ export default function CalculatorPage() {
       productPrice: "",
       reconstitutionVolume: "2",
       syringeSize: "1",
+      selectedRetailer: "",
+      selectedSize: "",
     });
     setResult(null);
     setSelectedGuide("");
+    setAvailableRetailers([]);
     toast.success("Form reset");
   };
 
-  const loadDosageGuide = (guideName: string) => {
-    const guide = dosageGuides.find((g) => g.name === guideName);
+  const loadDosageGuide = (guideId: string) => {
+    const guide = dosageGuides.find((g) => g._id === guideId);
     if (!guide) return;
 
-    setSelectedGuide(guideName);
+    setSelectedGuide(guideId);
+    setFormData((prev) => ({
+      ...prev,
+      selectedPeptide: guide._id,
+    }));
+
     // Parse the starting dose to populate form
-    const doseMatch = guide.startingDose.match(/(\d+(?:\.\d+)?)\s*(mg|mcg)/i);
+    const doseMatch = guide.startingDose.match(
+      /(\d+(?:\.\d+)?)\s*(mg|mcg|iu)/i
+    );
     if (doseMatch) {
       setFormData((prev) => ({
         ...prev,
         desiredDose: doseMatch[1],
-        doseUnit: doseMatch[2].toLowerCase() as "mg" | "mcg",
+        doseUnit: doseMatch[2].toLowerCase() as "mg" | "mcg" | "iu",
       }));
     }
 
-    toast.success(`Loaded ${guideName} dosage guide`);
+    // If dosages are available, use the first one for total amount
+    if (guide.dosages.length > 0) {
+      const firstDosage = guide.dosages[0];
+      const amountMatch = firstDosage.match(/(\d+(?:\.\d+)?)/);
+      if (amountMatch) {
+        setFormData((prev) => ({
+          ...prev,
+          totalAmount: amountMatch[1],
+        }));
+      }
+    }
+
+    toast.success(`Loaded ${guide.name} dosage guide`);
+  };
+
+  const handleRetailerChange = (retailerValue: string) => {
+    const [retailerId, size] = retailerValue.split("-");
+    const retailer = availableRetailers.find(
+      (r) => r.retailer_id === retailerId && r.size === size
+    );
+
+    if (retailer) {
+      setFormData((prev) => ({
+        ...prev,
+        selectedRetailer: retailerValue,
+        selectedSize: size,
+        productPrice: (retailer.discounted_price || retailer.price).toString(),
+      }));
+    }
+  };
+
+  const handlePeptideChange = (peptideId: string) => {
+    const peptide = allPeptides.find((p) => p._id === peptideId);
+    if (peptide) {
+      setFormData((prev) => ({
+        ...prev,
+        selectedPeptide: peptideId,
+        doseUnit: peptide.unit,
+        selectedRetailer: "",
+        selectedSize: "",
+        productPrice: "",
+      }));
+
+      // Auto-fill starting dose if available
+      if (peptide.startingDose) {
+        const doseMatch = peptide.startingDose.match(
+          /(\d+(?:\.\d+)?)\s*(mg|mcg|iu)/i
+        );
+        if (doseMatch) {
+          setFormData((prev) => ({
+            ...prev,
+            desiredDose: doseMatch[1],
+          }));
+        }
+      }
+
+      // Auto-fill total amount from first dosage
+      if (peptide.dosages.length > 0) {
+        const firstDosage = peptide.dosages[0];
+        const amountMatch = firstDosage.match(/(\d+(?:\.\d+)?)/);
+        if (amountMatch) {
+          setFormData((prev) => ({
+            ...prev,
+            totalAmount: amountMatch[1],
+          }));
+        }
+      }
+
+      setSelectedGuide(peptideId);
+    }
   };
 
   return (
@@ -252,6 +433,81 @@ export default function CalculatorPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Peptide Selection */}
+                <div className="md:col-span-2 space-y-2">
+                  <Label
+                    htmlFor="peptideSelect"
+                    className="text-sm font-medium"
+                  >
+                    Select Peptide (Optional)
+                  </Label>
+                  <Select
+                    value={formData.selectedPeptide}
+                    onValueChange={handlePeptideChange}
+                  >
+                    <SelectTrigger className="bg-white/70">
+                      <SelectValue placeholder="Choose a peptide for auto-fill" />
+                    </SelectTrigger>
+                    <SelectContent className="!bg-white max-h-60">
+                      {allPeptides.map((peptide) => (
+                        <SelectItem key={peptide._id} value={peptide._id}>
+                          <div className="flex items-center gap-2">
+                            <span>{peptide.name}</span>
+                            <Badge
+                              className={getCategoryColor(peptide.category)}
+                              variant="outline"
+                            >
+                              {peptide.category.replace("-", " ")}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Retailer Selection */}
+                {availableRetailers.length > 0 && (
+                  <div className="md:col-span-2 space-y-2">
+                    <Label
+                      htmlFor="retailerSelect"
+                      className="text-sm font-medium"
+                    >
+                      Select Retailer & Size
+                    </Label>
+                    <Select
+                      value={formData.selectedRetailer}
+                      onValueChange={handleRetailerChange}
+                    >
+                      <SelectTrigger className="bg-white/70">
+                        <SelectValue placeholder="Choose retailer and size" />
+                      </SelectTrigger>
+                      <SelectContent className="!bg-white">
+                        {availableRetailers.map((retailer, index) => (
+                          <SelectItem
+                            key={`${retailer.retailer_id}-${retailer.size}-${index}`}
+                            value={`${retailer.retailer_id}-${retailer.size}`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span>
+                                {retailer.retailer_name} - {retailer.size}
+                              </span>
+                              <span className="ml-2 font-semibold">
+                                ${retailer.discounted_price || retailer.price}
+                                {retailer.coupon_code && (
+                                  <span className="text-xs text-blue-600 ml-1">
+                                    ({retailer.coupon_code})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Total Amount */}
                 <div className="space-y-2">
                   <Label htmlFor="totalAmount" className="text-sm font-medium">
@@ -273,7 +529,7 @@ export default function CalculatorPage() {
                     />
                     <Select
                       value={formData.doseUnit}
-                      onValueChange={(value: "mg" | "mcg") =>
+                      onValueChange={(value: "mg" | "mcg" | "iu") =>
                         setFormData((prev) => ({ ...prev, doseUnit: value }))
                       }
                     >
@@ -283,6 +539,7 @@ export default function CalculatorPage() {
                       <SelectContent className="!bg-white">
                         <SelectItem value="mg">mg</SelectItem>
                         <SelectItem value="mcg">mcg</SelectItem>
+                        <SelectItem value="iu">IU</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -485,34 +742,6 @@ export default function CalculatorPage() {
                     <>
                       <div className="p-4 bg-white/60 rounded-lg border border-white/60">
                         <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="text-sm text-gray-600">
-                            Cost per Dose
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold text-gray-900">
-                          ${result.costPerDose}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          per injection
-                        </div>
-                      </div>
-
-                      <div className="p-4 bg-white/60 rounded-lg border border-white/60">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm text-gray-600">
-                            Weekly Cost
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold text-gray-900">
-                          ${result.costPerWeek}
-                        </div>
-                        <div className="text-xs text-gray-500">per week</div>
-                      </div>
-
-                      <div className="p-4 bg-white/60 rounded-lg border border-white/60">
-                        <div className="flex items-center gap-2 mb-2">
                           <DollarSign className="h-4 w-4 text-purple-600" />
                           <span className="text-sm text-gray-600">
                             Monthly Cost
@@ -571,13 +800,13 @@ export default function CalculatorPage() {
                 <div className="space-y-3">
                   {dosageGuides.map((guide) => (
                     <div
-                      key={guide.name}
+                      key={guide._id}
                       className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        selectedGuide === guide.name
+                        selectedGuide === guide._id
                           ? "bg-blue-50 border-blue-200 shadow-md"
                           : "bg-white/60 border-white/60 hover:bg-white/80"
                       }`}
-                      onClick={() => loadDosageGuide(guide.name)}
+                      onClick={() => loadDosageGuide(guide._id)}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-gray-900">
@@ -595,9 +824,22 @@ export default function CalculatorPage() {
                         <div>
                           <strong>Frequency:</strong> {guide.frequency}
                         </div>
+                        {guide.dosages.length > 0 && (
+                          <div>
+                            <strong>Available sizes:</strong>{" "}
+                            {guide.dosages.slice(0, 3).join(", ")}
+                            {guide.dosages.length > 3 && "..."}
+                          </div>
+                        )}
+                        {guide.retailers.length > 0 && (
+                          <div>
+                            <strong>Retailers:</strong> {guide.retailers.length}{" "}
+                            available
+                          </div>
+                        )}
                       </div>
                       <div className="mt-2 text-xs text-gray-500 italic">
-                        {guide.notes}
+                        {guide.dosageNotes}
                       </div>
                     </div>
                   ))}
@@ -605,6 +847,88 @@ export default function CalculatorPage() {
               )}
 
               <Separator className="my-6 bg-gray-200/50" />
+
+              {/* Selected Peptide Info */}
+              {formData.selectedPeptide && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Selected Peptide Info
+                  </h4>
+                  {(() => {
+                    const selected = allPeptides.find(
+                      (p) => p._id === formData.selectedPeptide
+                    );
+                    return selected ? (
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="font-medium text-blue-900">
+                          {selected.name}
+                        </div>
+                        <div className="text-sm text-blue-700 mt-1">
+                          Unit: {selected.unit} | Category:{" "}
+                          {selected.category.replace("-", " ")}
+                        </div>
+                        {selected.startingDose && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            Starting dose: {selected.startingDose}
+                          </div>
+                        )}
+                        {selected.frequency && (
+                          <div className="text-xs text-blue-600">
+                            Frequency: {selected.frequency}
+                          </div>
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
+
+              {/* Current Retailer Info */}
+              {formData.selectedRetailer && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Selected Retailer
+                  </h4>
+                  {(() => {
+                    const [retailerId, size] =
+                      formData.selectedRetailer.split("-");
+                    const retailer = availableRetailers.find(
+                      (r) => r.retailer_id === retailerId && r.size === size
+                    );
+                    return retailer ? (
+                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div className="font-medium text-green-900">
+                          {retailer.retailer_name}
+                        </div>
+                        <div className="text-sm text-green-700 mt-1">
+                          Size: {retailer.size}
+                        </div>
+                        <div className="text-sm text-green-700">
+                          Price: ${retailer.discounted_price || retailer.price}
+                          {retailer.discounted_price &&
+                            retailer.discounted_price !== retailer.price && (
+                              <span className="line-through text-green-500 ml-1">
+                                ${retailer.price}
+                              </span>
+                            )}
+                        </div>
+                        {retailer.coupon_code && (
+                          <div className="text-xs text-green-600 mt-1">
+                            Code: {retailer.coupon_code}
+                          </div>
+                        )}
+                        <div
+                          className={`text-xs mt-1 ${
+                            retailer.stock ? "text-green-600" : "text-red-600"
+                          }`}
+                        >
+                          {retailer.stock ? "✓ In Stock" : "✗ Out of Stock"}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
 
               <Alert className="bg-yellow-50 border-yellow-200">
                 <Info className="h-4 w-4 text-yellow-600" />

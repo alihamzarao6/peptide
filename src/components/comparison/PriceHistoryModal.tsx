@@ -39,6 +39,10 @@ import {
 import { toast } from "sonner";
 import { publicApi } from "@/lib/api";
 import { Peptide } from "@/lib/types";
+import {
+  generateRetailerHexColor,
+  formatRetailerName,
+} from "@/lib/dynamicUtils";
 
 interface PriceHistoryModalProps {
   peptideId: string;
@@ -58,24 +62,6 @@ interface RetailerInfo {
   currentPrice: number;
   currentStock: boolean;
 }
-
-const retailerColors: Record<string, string> = {
-  aminoasylum: "#3B82F6",
-  modernaminos: "#10B981",
-  ascension: "#8B5CF6",
-  simple: "#F59E0B",
-  prime: "#EF4444",
-  solution: "#06B6D4",
-};
-
-const retailerNames: Record<string, string> = {
-  aminoasylum: "Amino Asylum",
-  modernaminos: "Modern Aminos",
-  ascension: "Ascension Peptides",
-  simple: "Simple Peptide",
-  prime: "Prime Peptides",
-  solution: "Solution Peptides",
-};
 
 const timeRanges = [
   { label: "30 Days", value: "30d", days: 30 },
@@ -197,11 +183,8 @@ export function PriceHistoryModal({
 
     return peptide.retailers.map((retailer) => ({
       id: retailer.retailer_id,
-      name:
-        retailerNames[retailer.retailer_id] ||
-        retailer.retailer_name ||
-        retailer.retailer_id,
-      color: retailerColors[retailer.retailer_id] || "#6B7280",
+      name: formatRetailerName(retailer.retailer_id),
+      color: generateRetailerHexColor(retailer.retailer_id),
       currentPrice: retailer.discounted_price || retailer.price,
       currentStock: retailer.stock,
     }));

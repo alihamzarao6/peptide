@@ -1,15 +1,10 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   Minus,
   Calculator,
   Target,
-  Zap,
-  Heart,
-  Brain,
-  Clock,
-  TrendingUp,
   ShoppingCart,
   Trash2,
   Copy,
@@ -21,7 +16,21 @@ import {
   Lightbulb,
   DollarSign,
   Package,
+  RotateCcw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { publicApi } from "@/lib/api";
+import { toast } from "sonner";
+import {
+  useRetailerData,
+  useCategoryData,
+  getCategoryIcon,
+  getCategoryColor,
+  formatRetailerName,
+} from "@/lib/dynamicUtils";
 
 interface StackItem {
   id: string;
@@ -37,6 +46,8 @@ interface StackItem {
   discountedPrice?: number;
   couponCode?: string;
   inStock: boolean;
+  size: string;
+  affiliateUrl: string;
 }
 
 interface Goal {
@@ -55,6 +66,7 @@ interface StackTemplate {
   goals: string[];
   peptides: {
     peptideId: string;
+    name: string;
     dosage: string;
     duration: number;
     timing: string;
@@ -63,197 +75,27 @@ interface StackTemplate {
   difficulty: "Beginner" | "Intermediate" | "Advanced";
 }
 
-const goals: Goal[] = [
-  {
-    id: "fat-loss",
-    name: "Fat Loss",
-    icon: Zap,
-    color: "bg-red-500",
-    description: "Burn fat and improve body composition",
-    recommendedPeptides: [
-      "retatrutide",
-      "aod-9604",
-      "5-amino-1mq",
-      "semaglutide",
-    ],
-  },
-  {
-    id: "muscle-growth",
-    name: "Muscle Growth",
-    icon: TrendingUp,
-    color: "bg-blue-500",
-    description: "Build lean muscle mass and strength",
-    recommendedPeptides: [
-      "ipamorelin",
-      "cjc-1295",
-      "igf-1-lr3",
-      "follistatin-344",
-    ],
-  },
-  {
-    id: "healing",
-    name: "Healing & Recovery",
-    icon: Heart,
-    color: "bg-green-500",
-    description: "Accelerate recovery and tissue repair",
-    recommendedPeptides: ["bpc-157", "tb-500", "ghk-cu", "thymosin-beta-4"],
-  },
-  {
-    id: "anti-aging",
-    name: "Anti-Aging",
-    icon: Clock,
-    color: "bg-purple-500",
-    description: "Slow aging and improve longevity",
-    recommendedPeptides: ["nad+", "epitalon", "ghk-cu", "thymosin-alpha-1"],
-  },
-  {
-    id: "cognitive",
-    name: "Cognitive Enhancement",
-    icon: Brain,
-    color: "bg-yellow-500",
-    description: "Improve focus, memory, and mental clarity",
-    recommendedPeptides: ["selank", "semax", "noopept", "cerebrolysin"],
-  },
-];
-
-const stackTemplates: StackTemplate[] = [
-  {
-    id: "beginner-fat-loss",
-    name: "Beginner Fat Loss",
-    description: "Simple and effective fat loss stack for newcomers",
-    goals: ["fat-loss"],
-    peptides: [
-      {
-        peptideId: "aod-9604",
-        dosage: "5mg",
-        duration: 8,
-        timing: "Morning, fasted",
-      },
-      {
-        peptideId: "5-amino-1mq",
-        dosage: "10mg",
-        duration: 8,
-        timing: "Evening",
-      },
-    ],
-    estimatedCost: 200,
-    difficulty: "Beginner",
-  },
-  {
-    id: "advanced-muscle-growth",
-    name: "Advanced Muscle Growth",
-    description: "Comprehensive muscle building stack for experienced users",
-    goals: ["muscle-growth"],
-    peptides: [
-      {
-        peptideId: "ipamorelin",
-        dosage: "100mcg",
-        duration: 12,
-        timing: "Post-workout",
-      },
-      {
-        peptideId: "cjc-1295",
-        dosage: "100mcg",
-        duration: 12,
-        timing: "Before bed",
-      },
-      {
-        peptideId: "igf-1-lr3",
-        dosage: "50mcg",
-        duration: 4,
-        timing: "Post-workout",
-      },
-    ],
-    estimatedCost: 450,
-    difficulty: "Advanced",
-  },
-  {
-    id: "healing-recovery",
-    name: "Ultimate Recovery",
-    description: "Powerful healing stack for injury recovery",
-    goals: ["healing"],
-    peptides: [
-      {
-        peptideId: "bpc-157",
-        dosage: "500mcg",
-        duration: 8,
-        timing: "Twice daily",
-      },
-      {
-        peptideId: "tb-500",
-        dosage: "2mg",
-        duration: 6,
-        timing: "Every 3 days",
-      },
-    ],
-    estimatedCost: 320,
-    difficulty: "Intermediate",
-  },
-];
-
-const availablePeptides = [
-  {
-    id: "retatrutide",
-    name: "Retatrutide",
-    category: "fat-loss",
-    dosages: ["5mg", "10mg", "15mg"],
-  },
-  {
-    id: "aod-9604",
-    name: "AOD-9604",
-    category: "fat-loss",
-    dosages: ["5mg", "10mg"],
-  },
-  {
-    id: "5-amino-1mq",
-    name: "5-Amino-1MQ",
-    category: "fat-loss",
-    dosages: ["10mg", "25mg", "50mg"],
-  },
-  {
-    id: "bpc-157",
-    name: "BPC-157",
-    category: "healing",
-    dosages: ["5mg", "10mg", "15mg"],
-  },
-  {
-    id: "tb-500",
-    name: "TB-500",
-    category: "healing",
-    dosages: ["2mg", "5mg", "10mg"],
-  },
-  {
-    id: "ipamorelin",
-    name: "Ipamorelin",
-    category: "muscle-growth",
-    dosages: ["100mcg", "200mcg", "500mcg"],
-  },
-  {
-    id: "cjc-1295",
-    name: "CJC-1295",
-    category: "muscle-growth",
-    dosages: ["100mcg", "200mcg"],
-  },
-  {
-    id: "nad+",
-    name: "NAD+",
-    category: "anti-aging",
-    dosages: ["500mg", "1000mg"],
-  },
-  {
-    id: "selank",
-    name: "Selank",
-    category: "cognitive",
-    dosages: ["150mcg", "300mcg"],
-  },
-];
-
-const retailers = [
-  { id: "aminoasylum", name: "Amino Asylum", color: "bg-blue-500" },
-  { id: "modernaminos", name: "Modern Aminos", color: "bg-green-500" },
-  { id: "ascension", name: "Ascension Peptides", color: "bg-purple-500" },
-  { id: "solution", name: "Solution Peptides", color: "bg-cyan-500" },
-];
+interface ApiPeptide {
+  _id: string;
+  name: string;
+  category: string;
+  dosages: string[];
+  unit: string;
+  recommendedForGoals?: string[];
+  stackDifficulty?: "Beginner" | "Intermediate" | "Advanced";
+  stackTiming?: string;
+  stackDuration?: number;
+  retailers: Array<{
+    retailer_id: string;
+    retailer_name?: string; // allow undefined
+    price: number;
+    discounted_price?: number;
+    size: string;
+    stock: boolean;
+    affiliate_url: string;
+    coupon_code?: string;
+  }>;
+}
 
 export default function StackBuilderPage() {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
@@ -264,28 +106,202 @@ export default function StackBuilderPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [savedStacks, setSavedStacks] = useState<any[]>([]);
 
-  const addToStack = (peptide: any, dosage: string, retailer: any) => {
+  // API Data
+  const [availablePeptides, setAvailablePeptides] = useState<ApiPeptide[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [retailers, setRetailers] = useState<any[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [stackTemplates, setStackTemplates] = useState<StackTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Dynamic utilities
+  const { getRetailerColor, getRetailerName } =
+    useRetailerData(availablePeptides);
+  const { getCategoryById, getCategoryColor: getCatColor } =
+    useCategoryData(availablePeptides);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Fetch peptides
+        const peptidesData = await publicApi.getPeptides();
+        setAvailablePeptides(peptidesData);
+
+        // Extract categories from peptides
+        const categoriesData = await publicApi.getCategories();
+        setCategories(categoriesData);
+
+        // Extract retailers from peptides
+        const retailersData = await publicApi.getRetailers();
+        setRetailers(retailersData);
+
+        // Generate goals dynamically from categories
+        const generatedGoals: Goal[] = categoriesData.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name,
+          icon: getCategoryIcon(cat.id),
+          color: getCategoryColor(cat.id),
+          description: generateGoalDescription(cat.name),
+          recommendedPeptides: peptidesData
+            .filter((p: ApiPeptide) => p.category === cat.id)
+            .map((p: ApiPeptide) => p._id),
+        }));
+        setGoals(generatedGoals);
+
+        // Generate stack templates from peptides with stack data
+        const templates = generateStackTemplates(peptidesData);
+        setStackTemplates(templates);
+      } catch (error) {
+        console.error("Error fetching stack builder data:", error);
+        toast.error("Failed to load stack builder data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const generateGoalDescription = (categoryName: string): string => {
+    const descriptions: Record<string, string> = {
+      "Fat Loss": "Burn fat and improve body composition",
+      Healing: "Recovery and tissue repair peptides",
+      "Growth Hormone": "Growth hormone releasing peptides",
+      "Anti-Aging": "Longevity and anti-aging compounds",
+      Nootropic: "Cognitive enhancement peptides",
+      "Muscle Growth": "Build lean muscle mass and strength",
+      Recovery: "Accelerate recovery and tissue repair",
+      Performance: "Enhance athletic performance",
+      Wellness: "Overall health and wellness support",
+    };
+
+    return (
+      descriptions[categoryName] ||
+      `${categoryName} related peptides for optimal results`
+    );
+  };
+
+  const generateStackTemplates = (peptides: ApiPeptide[]): StackTemplate[] => {
+    const templates: StackTemplate[] = [];
+
+    // Group peptides by difficulty and category
+    const beginnerPeptides = peptides.filter(
+      (p) => p.stackDifficulty === "Beginner"
+    );
+    const intermediatePeptides = peptides.filter(
+      (p) => p.stackDifficulty === "Intermediate"
+    );
+    const advancedPeptides = peptides.filter(
+      (p) => p.stackDifficulty === "Advanced"
+    );
+
+    // Generate templates for each category
+    categories.forEach((category) => {
+      const categoryPeptides = peptides.filter(
+        (p) => p.category === category.id
+      );
+
+      if (categoryPeptides.length >= 2) {
+        // Beginner template
+        const beginnerCatPeptides = categoryPeptides
+          .filter((p) => !p.stackDifficulty || p.stackDifficulty === "Beginner")
+          .slice(0, 2);
+
+        if (beginnerCatPeptides.length >= 1) {
+          templates.push({
+            id: `beginner-${category.id}`,
+            name: `Beginner ${category.name}`,
+            description: `Simple and effective ${category.name.toLowerCase()} stack for newcomers`,
+            goals: [category.id],
+            peptides: beginnerCatPeptides.map((p) => ({
+              peptideId: p._id,
+              name: p.name,
+              dosage: p.dosages[0] || "5mg",
+              duration: p.stackDuration || 8,
+              timing: p.stackTiming || "As directed",
+            })),
+            estimatedCost: calculateTemplateCost(beginnerCatPeptides),
+            difficulty: "Beginner",
+          });
+        }
+
+        // Advanced template
+        const advancedCatPeptides = categoryPeptides.slice(0, 3);
+        if (advancedCatPeptides.length >= 2) {
+          templates.push({
+            id: `advanced-${category.id}`,
+            name: `Advanced ${category.name}`,
+            description: `Comprehensive ${category.name.toLowerCase()} stack for experienced users`,
+            goals: [category.id],
+            peptides: advancedCatPeptides.map((p) => ({
+              peptideId: p._id,
+              name: p.name,
+              dosage: p.dosages[0] || "5mg",
+              duration: p.stackDuration || 12,
+              timing: p.stackTiming || "As directed",
+            })),
+            estimatedCost: calculateTemplateCost(advancedCatPeptides),
+            difficulty: "Advanced",
+          });
+        }
+      }
+    });
+
+    return templates;
+  };
+
+  const calculateTemplateCost = (peptides: ApiPeptide[]): number => {
+    return peptides.reduce((total, peptide) => {
+      if (peptide.retailers.length > 0) {
+        const avgPrice =
+          peptide.retailers.reduce(
+            (sum, r) => sum + (r.discounted_price || r.price),
+            0
+          ) / peptide.retailers.length;
+        return total + avgPrice;
+      }
+      return total;
+    }, 0);
+  };
+
+  const addToStack = (peptide: ApiPeptide, dosage: string, retailer: any) => {
+    const selectedRetailer = peptide.retailers.find(
+      (r) => r.retailer_id === retailer.id && r.size === dosage
+    );
+
+    if (!selectedRetailer) {
+      toast.error("Retailer not found for this peptide");
+      return;
+    }
+
     const newItem: StackItem = {
-      id: `${peptide.id}-${dosage}-${retailer.id}-${Date.now()}`,
-      peptideId: peptide.id,
+      id: `${peptide._id}-${dosage}-${retailer.id}-${Date.now()}`,
+      peptideId: peptide._id,
       peptideName: peptide.name,
       category: peptide.category,
-      dosage,
+      dosage: dosage,
       quantity: 1,
-      duration: 8,
+      duration: peptide.stackDuration || 8,
       retailerId: retailer.id,
-      retailerName: retailer.name,
-      pricePerUnit: Math.floor(Math.random() * 150) + 50,
-      discountedPrice:
-        Math.random() > 0.5 ? Math.floor(Math.random() * 40) + 30 : undefined,
-      couponCode: Math.random() > 0.5 ? "derek" : undefined,
-      inStock: Math.random() > 0.2,
+      retailerName: getRetailerName(retailer.id),
+      pricePerUnit: selectedRetailer.price,
+      discountedPrice: selectedRetailer.discounted_price,
+      couponCode: selectedRetailer.coupon_code,
+      inStock: selectedRetailer.stock,
+      size: selectedRetailer.size,
+      affiliateUrl: selectedRetailer.affiliate_url,
     };
+
     setStackItems([...stackItems, newItem]);
+    toast.success(`Added ${peptide.name} to stack`);
   };
 
   const removeFromStack = (itemId: string) => {
     setStackItems(stackItems.filter((item) => item.id !== itemId));
+    toast.success("Removed from stack");
   };
 
   const updateStackItem = (
@@ -323,47 +339,88 @@ export default function StackBuilderPage() {
       await navigator.clipboard.writeText(code);
       setCopiedCode(code);
       setTimeout(() => setCopiedCode(null), 2000);
+      toast.success(`Copied ${code}!`);
     } catch (err) {
-      console.error("Failed to copy code");
+      toast.error("Failed to copy code");
     }
   };
 
   const loadTemplate = (template: StackTemplate) => {
-    const newItems: StackItem[] = template.peptides.map((peptide, index) => {
-      const peptideData = availablePeptides.find(
-        (p) => p.id === peptide.peptideId
+    const newItems: StackItem[] = [];
+
+    template.peptides.forEach((templatePeptide) => {
+      const peptide = availablePeptides.find(
+        (p) => p._id === templatePeptide.peptideId
       );
-      const retailer = retailers[index % retailers.length];
+      if (peptide && peptide.retailers.length > 0) {
+        const retailer = peptide.retailers[0]; // Use first available retailer
 
-      return {
-        id: `template-${peptide.peptideId}-${Date.now()}-${index}`,
-        peptideId: peptide.peptideId,
-        peptideName: peptideData?.name || peptide.peptideId,
-        category: peptideData?.category || "unknown",
-        dosage: peptide.dosage,
-        quantity: 1,
-        duration: peptide.duration,
-        retailerId: retailer.id,
-        retailerName: retailer.name,
-        pricePerUnit: Math.floor(Math.random() * 150) + 50,
-        discountedPrice:
-          Math.random() > 0.5 ? Math.floor(Math.random() * 40) + 30 : undefined,
-        couponCode: "derek",
-        inStock: true,
-      };
+        newItems.push({
+          id: `template-${
+            templatePeptide.peptideId
+          }-${Date.now()}-${Math.random()}`,
+          peptideId: templatePeptide.peptideId,
+          peptideName: peptide.name,
+          category: peptide.category,
+          dosage: templatePeptide.dosage,
+          quantity: 1,
+          duration: templatePeptide.duration,
+          retailerId: retailer.retailer_id,
+          retailerName:
+            getRetailerName(retailer.retailer_id) ||
+            retailer.retailer_name ||
+            "",
+          pricePerUnit: retailer.price,
+          discountedPrice: retailer.discounted_price,
+          couponCode: retailer.coupon_code,
+          inStock: retailer.stock,
+          size: retailer.size,
+          affiliateUrl: retailer.affiliate_url,
+        });
+      }
     });
+
     setStackItems(newItems);
+    toast.success(`Loaded ${template.name} template`);
   };
 
-  const getCategoryIcon = (category: string) => {
-    const goal = goals.find((g) => g.id === category);
-    return goal ? goal.icon : Target;
+  const handleCheckout = () => {
+    if (stackItems.length === 0) {
+      toast.error("Add items to your stack first");
+      return;
+    }
+
+    // Group items by retailer and open affiliate links
+    const retailerGroups = stackItems.reduce((groups, item) => {
+      if (!groups[item.retailerId]) {
+        groups[item.retailerId] = [];
+      }
+      groups[item.retailerId].push(item);
+      return groups;
+    }, {} as Record<string, StackItem[]>);
+
+    Object.values(retailerGroups).forEach((items) => {
+      // Open the first item's affiliate URL for each retailer
+      if (items.length > 0) {
+        window.open(items[0].affiliateUrl, "_blank");
+      }
+    });
+
+    toast.success(
+      `Opening ${Object.keys(retailerGroups).length} retailer sites`
+    );
   };
 
-  const getCategoryColor = (category: string) => {
-    const goal = goals.find((g) => g.id === category);
-    return goal ? goal.color : "bg-gray-500";
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading stack builder...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -490,7 +547,14 @@ export default function StackBuilderPage() {
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`p-2 rounded-lg ${goal.color} text-white`}
+                                className={`p-2 rounded-lg text-white ${
+                                  goal.color.includes("bg-")
+                                    ? goal.color
+                                        .replace("bg-", "bg-")
+                                        .split(" ")[0]
+                                        .replace("100", "500")
+                                    : "bg-blue-500"
+                                }`}
                               >
                                 <Icon className="h-5 w-5" />
                               </div>
@@ -521,15 +585,21 @@ export default function StackBuilderPage() {
                           )
                           .map((peptide) => (
                             <div
-                              key={peptide.id}
+                              key={peptide._id}
                               className="bg-white/70 rounded-lg p-4 border border-gray-200"
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className={`p-2 rounded-lg ${getCategoryColor(
-                                      peptide.category
-                                    )} text-white`}
+                                    className={`p-2 rounded-lg text-white ${
+                                      getCatColor(peptide.category).includes(
+                                        "bg-"
+                                      )
+                                        ? getCatColor(peptide.category)
+                                            .split(" ")[0]
+                                            .replace("100", "500")
+                                        : "bg-blue-500"
+                                    }`}
                                   >
                                     {React.createElement(
                                       getCategoryIcon(peptide.category),
@@ -541,33 +611,41 @@ export default function StackBuilderPage() {
                                       {peptide.name}
                                     </h5>
                                     <div className="flex gap-2 mt-1">
-                                      {peptide.dosages.map((dosage) => (
-                                        <span
-                                          key={dosage}
-                                          className="text-xs bg-gray-100 px-2 py-1 rounded"
-                                        >
-                                          {dosage}
-                                        </span>
-                                      ))}
+                                      {peptide.dosages
+                                        .slice(0, 3)
+                                        .map((dosage) => (
+                                          <span
+                                            key={dosage}
+                                            className="text-xs bg-gray-100 px-2 py-1 rounded"
+                                          >
+                                            {dosage}
+                                          </span>
+                                        ))}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex gap-2">
-                                  {retailers.slice(0, 2).map((retailer) => (
-                                    <button
-                                      key={retailer.id}
-                                      onClick={() =>
-                                        addToStack(
-                                          peptide,
-                                          peptide.dosages[0],
-                                          retailer
-                                        )
-                                      }
-                                      className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors cursor-pointer"
-                                    >
-                                      Add from {retailer.name}
-                                    </button>
-                                  ))}
+                                  {peptide.retailers
+                                    .slice(0, 2)
+                                    .map((retailer, idx) => (
+                                      <button
+                                        key={`${retailer.retailer_id}-${idx}`}
+                                        onClick={() =>
+                                          addToStack(
+                                            peptide,
+                                            peptide.dosages[0],
+                                            {
+                                              id: retailer.retailer_id,
+                                              name: retailer.retailer_name,
+                                            }
+                                          )
+                                        }
+                                        className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors cursor-pointer"
+                                      >
+                                        Add from{" "}
+                                        {getRetailerName(retailer.retailer_id)}
+                                      </button>
+                                    ))}
                                 </div>
                               </div>
                             </div>
@@ -612,7 +690,9 @@ export default function StackBuilderPage() {
                           </p>
                           <div className="flex items-center gap-4 text-sm text-gray-500">
                             <span>💊 {template.peptides.length} Peptides</span>
-                            <span>💰 ~${template.estimatedCost}</span>
+                            <span>
+                              💰 ~${template.estimatedCost.toFixed(0)}
+                            </span>
                             <span>
                               ⏱️{" "}
                               {Math.max(
@@ -624,33 +704,28 @@ export default function StackBuilderPage() {
                         </div>
                         <button
                           onClick={() => loadTemplate(template)}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
                         >
                           Load Template
                         </button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {template.peptides.map((peptide, index) => {
-                          const peptideData = availablePeptides.find(
-                            (p) => p.id === peptide.peptideId
-                          );
-                          return (
-                            <div
-                              key={index}
-                              className="bg-gray-50 rounded-lg p-3 text-sm"
-                            >
-                              <div className="font-medium text-gray-900">
-                                {peptideData?.name}
-                              </div>
-                              <div className="text-gray-600">
-                                {peptide.dosage} • {peptide.duration}w
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {peptide.timing}
-                              </div>
+                        {template.peptides.map((peptide, index) => (
+                          <div
+                            key={index}
+                            className="bg-gray-50 rounded-lg p-3 text-sm"
+                          >
+                            <div className="font-medium text-gray-900">
+                              {peptide.name}
                             </div>
-                          );
-                        })}
+                            <div className="text-gray-600">
+                              {peptide.dosage} • {peptide.duration}w
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {peptide.timing}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -666,15 +741,19 @@ export default function StackBuilderPage() {
                   <div className="grid gap-4">
                     {availablePeptides.map((peptide) => (
                       <div
-                        key={peptide.id}
+                        key={peptide._id}
                         className="bg-white/70 rounded-lg p-4 border border-gray-200"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div
-                              className={`p-2 rounded-lg ${getCategoryColor(
-                                peptide.category
-                              )} text-white`}
+                              className={`p-2 rounded-lg text-white ${
+                                getCatColor(peptide.category).includes("bg-")
+                                  ? getCatColor(peptide.category)
+                                      .split(" ")[0]
+                                      .replace("100", "500")
+                                  : "bg-blue-500"
+                              }`}
                             >
                               {React.createElement(
                                 getCategoryIcon(peptide.category),
@@ -686,7 +765,7 @@ export default function StackBuilderPage() {
                                 {peptide.name}
                               </h5>
                               <div className="flex gap-2 mt-1">
-                                {peptide.dosages.map((dosage) => (
+                                {peptide.dosages.slice(0, 3).map((dosage) => (
                                   <span
                                     key={dosage}
                                     className="text-xs bg-gray-100 px-2 py-1 rounded"
@@ -699,13 +778,13 @@ export default function StackBuilderPage() {
                           </div>
                           <button
                             onClick={() =>
-                              addToStack(
-                                peptide,
-                                peptide.dosages[0],
-                                retailers[0]
-                              )
+                              addToStack(peptide, peptide.dosages[0], {
+                                id: peptide.retailers[0]?.retailer_id,
+                                name: peptide.retailers[0]?.retailer_name,
+                              })
                             }
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 cursor-pointer"
+                            disabled={!peptide.retailers.length}
                           >
                             <Plus className="h-4 w-4" />
                             Add to Stack
@@ -724,6 +803,19 @@ export default function StackBuilderPage() {
             <div className="glass-effect rounded-xl p-6 border border-white/30 sticky top-24">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-gray-900">Your Stack</h3>
+                {stackItems.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStackItems([]);
+                      toast.success("Stack cleared");
+                    }}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
               </div>
 
               {stackItems.length === 0 ? (
@@ -945,11 +1037,14 @@ export default function StackBuilderPage() {
 
                     {/* Action Buttons */}
                     <div className="mt-4 space-y-2">
-                      <button className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
+                      <button
+                        onClick={handleCheckout}
+                        className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
                         <ShoppingCart className="h-4 w-4" />
                         Proceed to Checkout
                       </button>
-                      <button className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                      <button className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer">
                         <Download className="h-4 w-4" />
                         Export Stack Details
                       </button>
@@ -977,15 +1072,15 @@ export default function StackBuilderPage() {
                       {Array.from(
                         new Set(stackItems.map((item) => item.category))
                       ).map((category) => {
-                        const goal = goals.find((g) => g.id === category);
-                        const Icon = goal?.icon || Target;
+                        const categoryData = getCategoryById(category);
+                        const Icon = categoryData.icon;
                         return (
                           <div
                             key={category}
                             className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs"
                           >
                             <Icon className="h-3 w-3" />
-                            {goal?.name || category}
+                            {categoryData.name}
                           </div>
                         );
                       })}
