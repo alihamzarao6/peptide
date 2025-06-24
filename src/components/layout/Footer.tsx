@@ -45,13 +45,13 @@ export function Footer() {
                 </div>
               </div>
               <div>
-                <h2 className="text-2xl font-bold">PeptidePrice</h2>
+                <h2 className="text-2xl font-bold">PeptideDeals</h2>
                 <p className="text-blue-200 text-sm">Compare & Save</p>
               </div>
             </Link>
 
             <p className="text-gray-300 leading-relaxed mb-6">
-              Compare peptide prices across multiple retailers to find the best
+              Compare peptide deals across multiple retailers to find the best
               deals. Use our coupon codes for additional savings.
             </p>
 
@@ -62,7 +62,7 @@ export function Footer() {
                 className="border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white transition-colors"
                 asChild
               >
-                <Link href="mailto:info@peptideprice.com">
+                <Link href="mailto:info@peptidedeals.com">
                   <Mail className="h-4 w-4 mr-2" />
                   Contact Us
                 </Link>
@@ -143,7 +143,7 @@ export function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left">
             <p className="text-gray-300 text-sm">
-              © 2025 PeptidePrice. All rights reserved.
+              © 2025 PeptideDeals. All rights reserved.
             </p>
             <p className="text-gray-400 text-xs mt-1">
               This website is for informational purposes only. We do not sell

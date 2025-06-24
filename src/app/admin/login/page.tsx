@@ -97,7 +97,7 @@ export default function AdminLoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                PeptidePrice
+                PeptideDeals
               </h1>
               <p className="text-sm text-gray-500">Admin Portal</p>
             </div>
@@ -194,7 +194,7 @@ export default function AdminLoginPage() {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          {/* <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <h3 className="text-sm font-medium text-yellow-800 mb-2">
               Demo Credentials
             </h3>
@@ -206,7 +206,7 @@ export default function AdminLoginPage() {
                 <strong>Password:</strong> admin123!
               </div>
             </div>
-          </div>
+          </div> */}
         </Card>
 
         {/* Footer */}

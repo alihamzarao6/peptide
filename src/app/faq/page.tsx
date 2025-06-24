@@ -43,9 +43,9 @@ const faqData: FAQ[] = [
   // General Questions
   {
     id: "1",
-    question: "What is PeptidePrice and how does it work?",
+    question: "What is PeptideDeals and how does it work?",
     answer:
-      "PeptidePrice is a comparison platform that helps you find the best deals on research peptides from trusted retailers. We aggregate pricing information from multiple vendors, allowing you to compare prices, read reviews, and find the best deals in one place. We earn commissions through affiliate partnerships when you purchase through our links.",
+      "PeptideDeals is a comparison platform that helps you find the best deals on research peptides from trusted retailers. We aggregate pricing information from multiple vendors, allowing you to compare prices, read reviews, and find the best deals in one place. We earn commissions through affiliate partnerships when you purchase through our links.",
     category: "general",
     tags: ["platform", "comparison", "how it works"],
     popularity: 95,
@@ -53,7 +53,7 @@ const faqData: FAQ[] = [
   },
   {
     id: "2",
-    question: "Are the prices shown on PeptidePrice accurate and up-to-date?",
+    question: "Are the prices shown on PeptideDeals accurate and up-to-date?",
     answer:
       "We update our price data regularly to ensure accuracy. However, prices can change frequently, and we recommend verifying the current price directly with the retailer before making a purchase. Stock availability and pricing are subject to change without notice.",
     category: "general",
@@ -65,7 +65,7 @@ const faqData: FAQ[] = [
     id: "3",
     question: "Do you sell peptides directly?",
     answer:
-      "No, PeptidePrice does not sell peptides directly. We are a comparison platform that helps you find the best deals from established retailers. All purchases are made directly through the individual retailers' websites.",
+      "No, PeptideDeals does not sell peptides directly. We are a comparison platform that helps you find the best deals from established retailers. All purchases are made directly through the individual retailers' websites.",
     category: "general",
     tags: ["direct sales", "platform"],
     popularity: 78,
@@ -75,7 +75,7 @@ const faqData: FAQ[] = [
   // Ordering & Payment
   {
     id: "4",
-    question: "How do I place an order through PeptidePrice?",
+    question: "How do I place an order through PeptideDeals?",
     answer:
       'To place an order, simply find the product you want, compare prices from different retailers, and click the "Buy" button next to your preferred option. This will redirect you to the retailer\'s website where you can complete your purchase directly. Make sure to use any available coupon codes for additional savings.',
     category: "ordering",

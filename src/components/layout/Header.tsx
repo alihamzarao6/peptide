@@ -77,7 +77,7 @@ export function Header() {
             </div>
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                PeptidePrice
+                PeptideDeals
               </h1>
               <p className="text-xs text-gray-500 -mt-1">
                 {isAuthenticated ? "Admin Panel" : "Compare & Save"}

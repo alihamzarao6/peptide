@@ -9,7 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PeptidePrice - Compare Peptide Prices from Top Retailers",
+  title: "PeptideDeals - Compare Peptide Deals and Prices from Top Retailers",
   description:
     "Find the best deals on peptides from top retailers in one place. Compare prices, read reviews, and save money.",
 };
