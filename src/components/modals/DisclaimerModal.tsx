@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Shield, AlertTriangle, Check, X, Lock, FileText } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle,} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
