@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { DisclaimerWrapper } from "@/components/DisclaimerWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,12 +24,14 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
-            <Header />
-            <main className="pb-16">{children}</main>
-            <Footer />
-          </div>
-          <Toaster />
+          <DisclaimerWrapper>
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+              <Header />
+              <main className="pb-16">{children}</main>
+              <Footer />
+            </div>
+            <Toaster />
+          </DisclaimerWrapper>
         </AuthProvider>
       </body>
     </html>

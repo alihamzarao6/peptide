@@ -124,10 +124,15 @@
 @layer base {
   * {
     @apply border-border;
+    overflow-x: hidden;
+    max-width: 100%;
   }
 
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
   }
 }
 
@@ -142,6 +147,8 @@
 
   .glass-effect {
     @apply backdrop-blur-lg bg-white/80 border border-white/20;
+    max-width: 100%;
+    overflow-x: hidden
   }
 
   .hover-lift {
@@ -162,5 +169,14 @@
     100% {
       transform: translateX(100%);
     }
+  }
+
+  .grid {
+    overflow-x: hidden;
+  }
+
+  .flex {
+    flex-wrap: wrap;
+    max-width: 100%;
   }
 }

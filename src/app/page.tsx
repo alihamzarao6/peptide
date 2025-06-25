@@ -377,7 +377,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full overflow-x-hidden">
       {/* Hero Section */}
       <SearchHero
         searchQuery={filters.search}
@@ -386,74 +386,77 @@ export default function HomePage() {
         onCountryChange={handleCountryChange}
       />
 
-      {/* Main Content */}
-      <div className="container xl:max-w-[108rem] mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Filters */}
-          <div className="lg:w-80 shrink-0">
-            <FilterSidebar
-              filters={filters}
-              onFiltersChange={handleFiltersChange}
-              companies={companies}
-              categories={categories}
-              totalResults={filteredPeptides.length}
-            />
-          </div>
-
-          {/* Main Content Area */}
-          <div className="flex-1 min-w-0">
-            {/* Sorting Controls */}
-            <div className="mb-8">
-              <SortingControls
-                sortBy={sortBy}
-                onSortChange={handleSortChange}
-                viewMode={viewMode}
-                onViewModeChange={handleViewModeChange}
-                totalResults={peptides.length}
-                showingResults={filteredPeptides.length}
-                activeFiltersCount={activeFiltersCount}
+      {/* Main Content - Mobile Safe Container */}
+      <div className="w-full overflow-x-hidden">
+        <div className="container xl:max-w-[108rem] mx-auto px-4 sm:px-6 2xl:px-8 pb-16">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
+            {/* Sidebar Filters - Mobile Friendly */}
+            <div className="w-full lg:w-80 lg:shrink-0">
+              <FilterSidebar
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+                companies={companies}
+                categories={categories}
+                totalResults={filteredPeptides.length}
               />
             </div>
 
-            {/* Products Grid */}
-            {filteredPeptides.length > 0 ? (
-              <div
-                className={`grid gap-4 2xl:gap-6 ${
-                  viewMode.type === "grid"
-                    ? "grid-cols-1 xl:grid-cols-2 mw1950:grid-cols-3"
-                    : "grid-cols-1"
-                }`}
-              >
-                {filteredPeptides.map((peptide) => (
-                  <ProductCard
-                    key={peptide._id}
-                    peptide={peptide}
-                    onPriceHistoryClick={handlePriceHistoryClick}
-                  />
-                ))}
+            {/* Main Content Area - Prevent Overflow */}
+            <div className="flex-1 min-w-0 w-full overflow-x-hidden">
+              {/* Sorting Controls - Now Mobile Responsive */}
+              <div className="mb-6 lg:mb-8">
+                <SortingControls
+                  sortBy={sortBy}
+                  onSortChange={handleSortChange}
+                  viewMode={viewMode}
+                  onViewModeChange={handleViewModeChange}
+                  totalResults={peptides.length}
+                  showingResults={filteredPeptides.length}
+                  activeFiltersCount={activeFiltersCount}
+                />
               </div>
-            ) : (
-              <div className="text-center py-16">
-                <div className="max-w-md mx-auto">
-                  <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="text-4xl">🔍</span>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No peptides found
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    Try adjusting your filters or search terms to find what
-                    you're looking for.
-                  </p>
-                  <button
-                    onClick={clearAllFilters}
-                    className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                  >
-                    Clear all filters
-                  </button>
+
+              {/* Products Grid - Mobile Safe */}
+              {filteredPeptides.length > 0 ? (
+                <div
+                  className={`w-full grid gap-4 2xl:gap-6 ${
+                    viewMode.type === "grid"
+                      ? "grid-cols-1 xl:grid-cols-2 mw1950:grid-cols-3"
+                      : "grid-cols-1"
+                  }`}
+                >
+                  {filteredPeptides.map((peptide) => (
+                    <div key={peptide._id} className="w-full min-w-0">
+                      <ProductCard
+                        peptide={peptide}
+                        onPriceHistoryClick={handlePriceHistoryClick}
+                      />
+                    </div>
+                  ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-16">
+                  <div className="max-w-md mx-auto px-4">
+                    <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+                      <span className="text-4xl">🔍</span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      No peptides found
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Try adjusting your filters or search terms to find what
+                      you're looking for.
+                    </p>
+                    <button
+                      onClick={clearAllFilters}
+                      className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
