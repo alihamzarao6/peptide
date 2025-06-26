@@ -124,7 +124,7 @@
 @layer base {
   * {
     @apply border-border;
-    overflow-x: hidden;
+    /* overflow-x: hidden; */
     max-width: 100%;
   }
 
@@ -169,14 +169,5 @@
     100% {
       transform: translateX(100%);
     }
-  }
-
-  .grid {
-    overflow-x: hidden;
-  }
-
-  .flex {
-    flex-wrap: wrap;
-    max-width: 100%;
   }
 }

@@ -1,23 +1,20 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Plus,
   Minus,
   Save,
   X,
   TestTube2,
-  Upload,
   AlertCircle,
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { adminApi, APIError, publicApi } from "@/lib/api";
+import { adminApi, APIError } from "@/lib/api";
 import { PeptideFormData, RetailerFormData } from "@/lib/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -72,7 +69,7 @@ export default function AddPeptideForm() {
         discounted_price: 0,
         discount_percentage: 0,
         stock: true,
-        rating: 4.5,
+        rating: 0,
         review_count: 0,
         affiliate_url: "",
         coupon_code: "",
@@ -152,7 +149,7 @@ export default function AddPeptideForm() {
           discounted_price: 0,
           discount_percentage: 0,
           stock: true,
-          rating: 4.5,
+          rating: 0,
           review_count: 0,
           affiliate_url: "",
           coupon_code: "",
@@ -356,7 +353,7 @@ export default function AddPeptideForm() {
           discounted_price: 0,
           discount_percentage: 0,
           stock: true,
-          rating: 4.5,
+          rating: 0,
           review_count: 0,
           affiliate_url: "",
           coupon_code: "",
@@ -941,7 +938,7 @@ export default function AddPeptideForm() {
                             updateRetailer(
                               index,
                               "rating",
-                              parseFloat(e.target.value) || 4.5
+                              parseFloat(e.target.value) || 0
                             )
                           }
                           className="bg-white"

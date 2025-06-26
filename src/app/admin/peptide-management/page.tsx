@@ -494,7 +494,7 @@ export default function PeptideManagementTable() {
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">
                       Last Updated
                     </th>
-                    <th className="px-6 py-4 text-right text-sm font-medium text-gray-900">
+                    <th className="px-6 py-4 text-center text-sm font-medium text-gray-900">
                       Actions
                     </th>
                   </tr>
