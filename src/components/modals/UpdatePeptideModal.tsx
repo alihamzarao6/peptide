@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { X, TestTube2, Save, Plus, Minus, AlertCircle } from "lucide-react";
+import {
+  X,
+  TestTube2,
+  Save,
+  Plus,
+  Minus,
+  AlertCircle,
+  Package,
+  Target,
+  Calculator,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +19,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AdminPeptide, RetailerFormData } from "@/lib/types";
-import { adminApi, APIError } from "@/lib/api";
+import { AdminPeptide, RetailerFormData, RetailerVariant } from "@/lib/types";
+import { adminApi, publicApi, APIError } from "@/lib/api";
 import { toast } from "sonner";
 
 interface UpdatePeptideModalProps {
@@ -36,30 +55,13 @@ interface FormData {
   frequency: string;
   dosageNotes: string;
   recommendedForGoals: string[];
+  manualGoals: string[];
   stackDifficulty: "Beginner" | "Intermediate" | "Advanced";
   stackTiming: string;
   stackDuration: number;
   status: "active" | "inactive";
+  retailers: RetailerFormData[];
 }
-
-const categories = [
-  "fat-loss",
-  "healing",
-  "growth-hormone",
-  "anti-aging",
-  "nootropic",
-  "cognitive",
-  "recovery",
-  "longevity",
-];
-
-const goals = [
-  "fat-loss",
-  "muscle-growth",
-  "healing",
-  "anti-aging",
-  "cognitive",
-];
 
 export function UpdatePeptideModal({
   peptide,
@@ -81,19 +83,121 @@ export function UpdatePeptideModal({
     frequency: "",
     dosageNotes: "",
     recommendedForGoals: [],
+    manualGoals: [""],
     stackDifficulty: "Beginner",
     stackTiming: "",
     stackDuration: 8,
     status: "active",
+    retailers: [],
   });
 
-  const [retailers, setRetailers] = useState<RetailerFormData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Dynamic data states
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
+  const [dynamicGoals, setDynamicGoals] = useState<string[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  // Load dynamic categories and goals
+  useEffect(() => {
+    const loadDynamicData = async () => {
+      try {
+        setIsLoadingData(true);
+
+        const [categoriesData, peptidesData] = await Promise.all([
+          publicApi.getCategories(),
+          publicApi.getPeptides(),
+        ]);
+
+        const categoryNames = categoriesData.map((cat: any) => cat.id);
+        setDynamicCategories(categoryNames);
+
+        const goalSet = new Set<string>();
+        peptidesData.forEach((peptide: any) => {
+          if (peptide.recommendedForGoals) {
+            peptide.recommendedForGoals.forEach((goal: string) =>
+              goalSet.add(goal)
+            );
+          }
+          if (peptide.manualGoals) {
+            peptide.manualGoals.forEach((goal: string) => goalSet.add(goal));
+          }
+        });
+
+        setDynamicGoals(Array.from(goalSet));
+      } catch (error) {
+        console.error("Error loading dynamic data:", error);
+        setDynamicCategories([
+          "fat-loss",
+          "healing",
+          "growth-hormone",
+          "anti-aging",
+          "nootropic",
+          "cognitive",
+          "recovery",
+          "longevity",
+        ]);
+        setDynamicGoals([
+          "fat-loss",
+          "muscle-growth",
+          "healing",
+          "anti-aging",
+          "cognitive",
+        ]);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    if (isOpen) {
+      loadDynamicData();
+    }
+  }, [isOpen]);
 
   // Initialize form data when peptide changes
   useEffect(() => {
     if (peptide && isOpen) {
+      // Transform old retailer structure to new variant structure if needed
+      const transformedRetailers: RetailerFormData[] = [];
+
+      if (peptide.retailers) {
+        // Group retailers by retailer_id to create variants
+        const retailerGroups: { [key: string]: any[] } = {};
+
+        peptide.retailers.forEach((retailer: any) => {
+          const key = retailer.retailer_id;
+          if (!retailerGroups[key]) {
+            retailerGroups[key] = [];
+          }
+          retailerGroups[key].push(retailer);
+        });
+
+        // Convert groups to new variant structure
+        Object.entries(retailerGroups).forEach(([retailerId, retailers]) => {
+          const firstRetailer = retailers[0];
+          const variants = retailers.map((r: any) => ({
+            _id: r._id,
+            size: r.size || "",
+            price: r.price || 0,
+            discount_percentage: r.discount_percentage || 0,
+            discounted_price: r.discounted_price || 0,
+            stock: r.stock !== undefined ? r.stock : true,
+            coupon_code: r.coupon_code || "",
+          }));
+
+          transformedRetailers.push({
+            retailer_id: firstRetailer.retailer_id,
+            retailer_name: firstRetailer.retailer_name || "",
+            product_id: firstRetailer.product_id || "",
+            rating: firstRetailer.rating || 4.5,
+            review_count: firstRetailer.review_count || 0,
+            affiliate_url: firstRetailer.affiliate_url || "",
+            variants: variants,
+          });
+        });
+      }
+
       setFormData({
         name: peptide.name,
         category: peptide.category,
@@ -108,92 +212,43 @@ export function UpdatePeptideModal({
         frequency: peptide.frequency || "",
         dosageNotes: peptide.dosageNotes || "",
         recommendedForGoals: peptide.recommendedForGoals || [],
+        manualGoals:
+          (peptide as any).manualGoals?.length > 0
+            ? (peptide as any).manualGoals
+            : [""],
         stackDifficulty: peptide.stackDifficulty || "Beginner",
         stackTiming: peptide.stackTiming || "",
         stackDuration: peptide.stackDuration || 8,
         status: peptide.status,
+        retailers:
+          transformedRetailers.length > 0
+            ? transformedRetailers
+            : [
+                {
+                  retailer_id: "",
+                  retailer_name: "",
+                  product_id: "",
+                  rating: 4.5,
+                  review_count: 0,
+                  affiliate_url: "",
+                  variants: [
+                    {
+                      size: "",
+                      price: 0,
+                      discount_percentage: 0,
+                      discounted_price: 0,
+                      stock: true,
+                      coupon_code: "",
+                    },
+                  ],
+                },
+              ],
       });
-
-      // Transform retailers to form format
-      const retailerData = peptide.retailers.map((retailer) => ({
-        retailer_id: retailer.retailer_id,
-        retailer_name: retailer.retailer_name || "",
-        product_id: retailer.product_id,
-        price: retailer.price,
-        discounted_price: retailer.discounted_price,
-        discount_percentage: retailer.discount_percentage,
-        stock: retailer.stock,
-        rating: retailer.rating,
-        review_count: retailer.review_count,
-        affiliate_url: retailer.affiliate_url,
-        coupon_code: retailer.coupon_code || "",
-        size: retailer.size,
-      }));
-
-      setRetailers(
-        retailerData.length > 0
-          ? retailerData
-          : [
-              {
-                retailer_id: "",
-                retailer_name: "",
-                product_id: "",
-                price: 0,
-                discounted_price: 0,
-                stock: true,
-                rating: 4.5,
-                review_count: 0,
-                affiliate_url: "",
-                coupon_code: "",
-                size: "",
-              },
-            ]
-      );
       setError("");
     }
   }, [peptide, isOpen]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!peptide) return;
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      // Validate required fields
-      if (!formData.name || !formData.category || !formData.description) {
-        throw new Error("Please fill in all required fields");
-      }
-
-      // Prepare data for API
-      const updateData = {
-        ...formData,
-        dosages: formData.dosages.filter((d) => d.trim()),
-        tags: formData.tags.filter((t) => t.trim()),
-        retailers: retailers.filter(
-          (r) => r.retailer_id && r.affiliate_url && r.size && r.price > 0
-        ),
-      };
-
-      const response = await adminApi.updatePeptide(peptide._id, updateData);
-
-      toast.success("Peptide updated successfully!");
-      onSuccess(response.peptide);
-      onClose();
-    } catch (error) {
-      console.error("Error updating peptide:", error);
-      const errorMessage =
-        error instanceof APIError
-          ? error.message
-          : "Failed to update peptide. Please try again.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Form handlers (same as Add Peptide form)
   const addDosage = () => {
     setFormData((prev) => ({
       ...prev,
@@ -202,10 +257,12 @@ export function UpdatePeptideModal({
   };
 
   const removeDosage = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      dosages: prev.dosages.filter((_, i) => i !== index),
-    }));
+    if (formData.dosages.length > 1) {
+      setFormData((prev) => ({
+        ...prev,
+        dosages: prev.dosages.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   const updateDosage = (index: number, value: string) => {
@@ -223,10 +280,12 @@ export function UpdatePeptideModal({
   };
 
   const removeTag = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((_, i) => i !== index),
-    }));
+    if (formData.tags.length > 1) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: prev.tags.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   const updateTag = (index: number, value: string) => {
@@ -236,42 +295,242 @@ export function UpdatePeptideModal({
     }));
   };
 
-  const addRetailer = () => {
-    setRetailers((prev) => [
+  const addManualGoal = () => {
+    setFormData((prev) => ({
       ...prev,
-      {
-        retailer_id: "",
-        retailer_name: "",
-        product_id: "",
-        price: 0,
-        discounted_price: 0,
-        stock: true,
-        rating: 4.5,
-        review_count: 0,
-        affiliate_url: "",
-        coupon_code: "",
-        size: "",
-      },
-    ]);
+      manualGoals: [...(prev.manualGoals || []), ""],
+    }));
+  };
+
+  const removeManualGoal = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      manualGoals: (prev.manualGoals || []).filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateManualGoal = (index: number, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      manualGoals: (prev.manualGoals || []).map((goal, i) =>
+        i === index ? value : goal
+      ),
+    }));
+  };
+
+  const addRetailer = () => {
+    setFormData((prev) => ({
+      ...prev,
+      retailers: [
+        ...prev.retailers,
+        {
+          retailer_id: "",
+          retailer_name: "",
+          product_id: "",
+          rating: 4.5,
+          review_count: 0,
+          affiliate_url: "",
+          variants: [
+            {
+              size: "",
+              price: 0,
+              discount_percentage: 0,
+              discounted_price: 0,
+              stock: true,
+              coupon_code: "",
+            },
+          ],
+        },
+      ],
+    }));
   };
 
   const removeRetailer = (index: number) => {
-    setRetailers((prev) => prev.filter((_, i) => i !== index));
+    if (formData.retailers.length > 1) {
+      setFormData((prev) => ({
+        ...prev,
+        retailers: prev.retailers.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   const updateRetailer = (
     index: number,
-    field: keyof RetailerFormData,
+    field: keyof Omit<RetailerFormData, "variants">,
     value: any
   ) => {
-    setRetailers((prev) =>
-      prev.map((retailer, i) =>
+    setFormData((prev) => ({
+      ...prev,
+      retailers: prev.retailers.map((retailer, i) =>
         i === index ? { ...retailer, [field]: value } : retailer
-      )
-    );
+      ),
+    }));
+  };
+
+  const addRetailerVariant = (retailerIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      retailers: prev.retailers.map((retailer, i) =>
+        i === retailerIndex
+          ? {
+              ...retailer,
+              variants: [
+                ...retailer.variants,
+                {
+                  size: "",
+                  price: 0,
+                  discount_percentage: 0,
+                  discounted_price: 0,
+                  stock: true,
+                  coupon_code: "",
+                },
+              ],
+            }
+          : retailer
+      ),
+    }));
+  };
+
+  const removeRetailerVariant = (
+    retailerIndex: number,
+    variantIndex: number
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      retailers: prev.retailers.map((retailer, i) =>
+        i === retailerIndex
+          ? {
+              ...retailer,
+              variants: retailer.variants.filter(
+                (_, vi) => vi !== variantIndex
+              ),
+            }
+          : retailer
+      ),
+    }));
+  };
+
+  const updateRetailerVariant = (
+    retailerIndex: number,
+    variantIndex: number,
+    field: keyof RetailerVariant,
+    value: any
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      retailers: prev.retailers.map((retailer, i) =>
+        i === retailerIndex
+          ? {
+              ...retailer,
+              variants: retailer.variants.map((variant, vi) => {
+                if (vi === variantIndex) {
+                  const updatedVariant = { ...variant, [field]: value };
+
+                  // Auto-calculate discounted price
+                  if (field === "price" || field === "discount_percentage") {
+                    const price = field === "price" ? value : variant.price;
+                    const discountPercent =
+                      field === "discount_percentage"
+                        ? value
+                        : variant.discount_percentage;
+
+                    if (price > 0 && discountPercent > 0) {
+                      updatedVariant.discounted_price =
+                        Math.round(price * (1 - discountPercent / 100) * 100) /
+                        100;
+                    } else {
+                      updatedVariant.discounted_price = 0;
+                    }
+                  }
+
+                  return updatedVariant;
+                }
+                return variant;
+              }),
+            }
+          : retailer
+      ),
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!peptide) return;
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const submitData = {
+        name: formData.name.trim(),
+        category: formData.category,
+        subcategory: formData.subcategory?.trim() || undefined,
+        description: formData.description.trim(),
+        dosages: formData.dosages.filter((d) => d.trim()),
+        unit: formData.unit,
+        tags: formData.tags.filter((t) => t.trim()),
+        image: formData.image?.trim() || undefined,
+        startingDose: formData.startingDose?.trim() || undefined,
+        maintenanceDose: formData.maintenanceDose?.trim() || undefined,
+        frequency: formData.frequency?.trim() || undefined,
+        dosageNotes: formData.dosageNotes?.trim() || undefined,
+        recommendedForGoals:
+          formData.recommendedForGoals.length > 0
+            ? formData.recommendedForGoals
+            : undefined,
+        manualGoals:
+          (formData.manualGoals || []).filter((g) => g.trim()).length > 0
+            ? formData.manualGoals?.filter((g) => g.trim())
+            : undefined,
+        stackDifficulty: formData.stackDifficulty,
+        stackTiming: formData.stackTiming?.trim() || undefined,
+        stackDuration: formData.stackDuration,
+        status: formData.status,
+        retailers: formData.retailers
+          .filter(
+            (retailer) =>
+              retailer.retailer_id &&
+              retailer.affiliate_url &&
+              retailer.variants.some(
+                (variant) => variant.size && variant.price > 0
+              )
+          )
+          .map((retailer) => ({
+            ...retailer,
+            variants: retailer.variants.filter(
+              (variant) => variant.size && variant.price > 0
+            ),
+          })),
+      };
+
+      const response = await adminApi.updatePeptide(peptide._id, submitData);
+      toast.success("Peptide updated successfully!");
+      onSuccess(response.peptide);
+      onClose();
+    } catch (error) {
+      const errorMessage =
+        error instanceof APIError ? error.message : "Failed to update peptide";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!peptide) return null;
+
+  if (isLoadingData) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600 ml-4">Loading form data...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -279,14 +538,14 @@ export function UpdatePeptideModal({
         <DialogHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <TestTube2 className="h-5 w-5 text-blue-600" />
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg">
+                <TestTube2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-2xl font-bold text-gray-900">
-                  Update Peptide
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                  Edit Peptide
                 </DialogTitle>
-                <p className="text-gray-600">Edit {peptide.name} details</p>
+                <p className="text-gray-600">Update {peptide.name} details</p>
               </div>
             </div>
           </div>
@@ -303,28 +562,54 @@ export function UpdatePeptideModal({
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Basic Information
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              📋 Basic Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Name *</Label>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Peptide Name *
+                </Label>
                 <Input
-                  id="name"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
+                  placeholder="e.g., BPC-157"
                   className="bg-white/70"
                   required
                 />
               </div>
 
               <div>
-                <Label htmlFor="category">Category *</Label>
-                <select
-                  id="category"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Category *
+                </Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, category: value }))
+                  }
+                >
+                  <SelectTrigger className="bg-white/70">
+                    <SelectValue placeholder="Select or type category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicCategories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category
+                          .split("-")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
                   value={formData.category}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -332,60 +617,88 @@ export function UpdatePeptideModal({
                       category: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat.replace("-", " ").toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Or type custom category"
+                  className="bg-white/70 mt-2"
+                />
               </div>
 
               <div>
-                <Label htmlFor="unit">Unit *</Label>
-                <select
-                  id="unit"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Subcategory
+                </Label>
+                <Input
+                  value={formData.subcategory}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      subcategory: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., wound healing, joint repair"
+                  className="bg-white/70"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Unit *
+                </Label>
+                <Select
                   value={formData.unit}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      unit: e.target.value as "mg" | "mcg" | "iu",
-                    }))
+                  onValueChange={(value: "mg" | "mcg" | "iu") =>
+                    setFormData((prev) => ({ ...prev, unit: value }))
                   }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
-                  required
                 >
-                  <option value="mg">mg (milligrams)</option>
-                  <option value="mcg">mcg (micrograms)</option>
-                  <option value="iu">IU (International Units)</option>
-                </select>
+                  <SelectTrigger className="bg-white/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mg">mg (milligrams)</SelectItem>
+                    <SelectItem value="mcg">mcg (micrograms)</SelectItem>
+                    <SelectItem value="iu">IU (International Units)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Status
+                </Label>
+                <Select
                   value={formData.status}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      status: e.target.value as "active" | "inactive",
-                    }))
+                  onValueChange={(value: "active" | "inactive") =>
+                    setFormData((prev) => ({ ...prev, status: value }))
                   }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                  <SelectTrigger className="bg-white/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Image URL
+                </Label>
+                <Input
+                  value={formData.image}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, image: e.target.value }))
+                  }
+                  placeholder="https://example.com/image.jpg"
+                  className="bg-white/70"
+                />
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="description">Description *</Label>
-                <textarea
-                  id="description"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Description *
+                </Label>
+                <Textarea
                   value={formData.description}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -394,7 +707,7 @@ export function UpdatePeptideModal({
                     }))
                   }
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
+                  className="bg-white/70"
                   required
                 />
               </div>
@@ -402,9 +715,9 @@ export function UpdatePeptideModal({
           </div>
 
           {/* Dosages */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Available Dosages
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              💊 Available Dosages
             </h3>
             <div className="space-y-3">
               {formData.dosages.map((dosage, index) => (
@@ -441,8 +754,10 @@ export function UpdatePeptideModal({
           </div>
 
           {/* Tags */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              🏷️ Tags
+            </h3>
             <div className="space-y-3">
               {formData.tags.map((tag, index) => (
                 <div key={index} className="flex items-center gap-3">
@@ -478,15 +793,17 @@ export function UpdatePeptideModal({
           </div>
 
           {/* Calculator Data */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-blue-600" />
               Calculator & Dosage Guide Data
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="startingDose">Starting Dose</Label>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Starting Dose
+                </Label>
                 <Input
-                  id="startingDose"
                   value={formData.startingDose}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -500,9 +817,10 @@ export function UpdatePeptideModal({
               </div>
 
               <div>
-                <Label htmlFor="maintenanceDose">Maintenance Dose</Label>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Maintenance Dose
+                </Label>
                 <Input
-                  id="maintenanceDose"
                   value={formData.maintenanceDose}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -516,9 +834,10 @@ export function UpdatePeptideModal({
               </div>
 
               <div>
-                <Label htmlFor="frequency">Frequency</Label>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Frequency
+                </Label>
                 <Input
-                  id="frequency"
                   value={formData.frequency}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -532,9 +851,10 @@ export function UpdatePeptideModal({
               </div>
 
               <div>
-                <Label htmlFor="stackDuration">Stack Duration (weeks)</Label>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Stack Duration (weeks)
+                </Label>
                 <Input
-                  id="stackDuration"
                   type="number"
                   value={formData.stackDuration}
                   onChange={(e) =>
@@ -548,9 +868,10 @@ export function UpdatePeptideModal({
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="dosageNotes">Dosage Notes</Label>
-                <textarea
-                  id="dosageNotes"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Dosage Notes
+                </Label>
+                <Textarea
                   value={formData.dosageNotes}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -559,84 +880,138 @@ export function UpdatePeptideModal({
                     }))
                   }
                   rows={3}
-                  placeholder="e.g., Take on empty stomach. Can be injected subcutaneously..."
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
+                  className="bg-white/70"
                 />
               </div>
             </div>
           </div>
 
-          {/* Stack Builder Data */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {/* Enhanced Stack Builder Data */}
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Target className="h-5 w-5 text-blue-600" />
               Stack Builder Data
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Predefined Goals */}
               <div>
-                <Label>Recommended for Goals</Label>
-                <div className="space-y-2 mt-2">
-                  {goals.map((goal) => (
-                    <label key={goal} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.recommendedForGoals.includes(goal)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                <Label className="text-sm font-medium text-gray-700 mb-3 block">
+                  Recommended for Goals (Select from existing)
+                </Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-white/50">
+                  {dynamicGoals.map((goal) => (
+                    <div key={goal} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={goal}
+                        checked={
+                          formData.recommendedForGoals?.includes(goal) || false
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) {
                             setFormData((prev) => ({
                               ...prev,
                               recommendedForGoals: [
-                                ...prev.recommendedForGoals,
+                                ...(prev.recommendedForGoals || []),
                                 goal,
                               ],
                             }));
                           } else {
                             setFormData((prev) => ({
                               ...prev,
-                              recommendedForGoals:
-                                prev.recommendedForGoals.filter(
-                                  (g) => g !== goal
-                                ),
+                              recommendedForGoals: (
+                                prev.recommendedForGoals || []
+                              ).filter((g) => g !== goal),
                             }));
                           }
                         }}
-                        className="rounded"
                       />
-                      <span className="text-sm capitalize">
-                        {goal.replace("-", " ")}
-                      </span>
-                    </label>
+                      <Label
+                        htmlFor={goal}
+                        className="text-sm text-gray-700 capitalize cursor-pointer"
+                      >
+                        {goal.replace(/-/g, " ")}
+                      </Label>
+                    </div>
                   ))}
+                </div>
+                {dynamicGoals.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    No existing goals found. Add custom goals below.
+                  </p>
+                )}
+              </div>
+
+              {/* Manual Goals Input */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-3 block">
+                  Add Custom Goals
+                </Label>
+                <div className="space-y-2">
+                  {(formData.manualGoals || []).map((goal, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={goal}
+                        onChange={(e) =>
+                          updateManualGoal(index, e.target.value)
+                        }
+                        placeholder="Enter custom goal (e.g., sleep-improvement)"
+                        className="bg-white/70"
+                      />
+                      {formData.manualGoals &&
+                        formData.manualGoals.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeManualGoal(index)}
+                            className="text-red-600 hover:bg-red-50"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addManualGoal}
+                    className="text-blue-600 hover:bg-blue-50 mt-2"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Custom Goal
+                  </Button>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="stackDifficulty">Stack Difficulty</Label>
-                <select
-                  id="stackDifficulty"
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Stack Difficulty
+                </Label>
+                <Select
                   value={formData.stackDifficulty}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      stackDifficulty: e.target.value as
-                        | "Beginner"
-                        | "Intermediate"
-                        | "Advanced",
-                    }))
+                  onValueChange={(
+                    value: "Beginner" | "Intermediate" | "Advanced"
+                  ) =>
+                    setFormData((prev) => ({ ...prev, stackDifficulty: value }))
                   }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/70 focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                </select>
+                  <SelectTrigger className="bg-white/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Beginner">Beginner</SelectItem>
+                    <SelectItem value="Intermediate">Intermediate</SelectItem>
+                    <SelectItem value="Advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="md:col-span-2">
-                <Label htmlFor="stackTiming">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
                   Stack Timing Recommendations
                 </Label>
                 <Input
-                  id="stackTiming"
                   value={formData.stackTiming}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -651,205 +1026,386 @@ export function UpdatePeptideModal({
             </div>
           </div>
 
-          {/* Retailers */}
-          <div className="glass-effect rounded-lg p-4 border border-white/30">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Retailers & Pricing
+          {/* Enhanced Retailer Section with Multiple Variants */}
+          <div className="gradient-card border-white/60 shadow-xl p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              Retailers & Pricing (Multiple Size/Dosage Variants)
             </h3>
+
             <div className="space-y-6">
-              {retailers.map((retailer, index) => (
+              {formData.retailers.map((retailer, retailerIndex) => (
                 <div
-                  key={index}
-                  className="p-4 bg-white/50 rounded-lg border border-gray-200"
+                  key={retailerIndex}
+                  className="border border-gray-200 rounded-lg p-4 bg-white/30"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-gray-900">
-                      Retailer #{index + 1}
+                    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Retailer #{retailerIndex + 1}
                     </h4>
-                    {retailers.length > 1 && (
+                    {formData.retailers.length > 1 && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => removeRetailer(index)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => removeRetailer(retailerIndex)}
+                        className="text-red-600 hover:bg-red-50"
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Retailer Basic Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Retailer Name *
-                      </label>
-                      <Input
-                        value={retailer.retailer_name}
-                        onChange={(e) => {
-                          updateRetailer(
-                            index,
-                            "retailer_name",
-                            e.target.value
-                          );
-                        }}
-                        placeholder="i.e Amino Asylum, Ascension Peptides"
-                        className="bg-white/70"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
                         Retailer ID *
-                      </label>
+                      </Label>
                       <Input
                         value={retailer.retailer_id}
-                        onChange={(e) => {
-                          updateRetailer(index, "retailer_id", e.target.value);
-                        }}
-                        placeholder="i.e aminosasylum, ascensionpeptides"
+                        onChange={(e) =>
+                          updateRetailer(
+                            retailerIndex,
+                            "retailer_id",
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g., aminosasylum"
                         className="bg-white/70"
                         required
                       />
                     </div>
 
                     <div>
-                      <Label>Product ID</Label>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Retailer Name *
+                      </Label>
+                      <Input
+                        value={retailer.retailer_name}
+                        onChange={(e) =>
+                          updateRetailer(
+                            retailerIndex,
+                            "retailer_name",
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g., Amino Asylum"
+                        className="bg-white/70"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Product ID
+                      </Label>
                       <Input
                         value={retailer.product_id}
                         onChange={(e) =>
-                          updateRetailer(index, "product_id", e.target.value)
+                          updateRetailer(
+                            retailerIndex,
+                            "product_id",
+                            e.target.value
+                          )
                         }
                         placeholder="e.g., bpc157-5mg"
-                        className="bg-white"
+                        className="bg-white/70"
                       />
                     </div>
 
                     <div>
-                      <Label>Size/Dosage *</Label>
-                      <Input
-                        value={retailer.size}
-                        onChange={(e) =>
-                          updateRetailer(index, "size", e.target.value)
-                        }
-                        placeholder="e.g., 5mg"
-                        className="bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Regular Price ($) *</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={retailer.price}
-                        onChange={(e) =>
-                          updateRetailer(
-                            index,
-                            "price",
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        placeholder="49.99"
-                        className="bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Discounted Price ($)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={retailer.discounted_price || ""}
-                        onChange={(e) =>
-                          updateRetailer(
-                            index,
-                            "discounted_price",
-                            parseFloat(e.target.value) || undefined
-                          )
-                        }
-                        placeholder="39.99"
-                        className="bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Stock Status</Label>
-                      <select
-                        value={retailer.stock.toString()}
-                        onChange={(e) =>
-                          updateRetailer(
-                            index,
-                            "stock",
-                            e.target.value === "true"
-                          )
-                        }
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="true">In Stock</option>
-                        <option value="false">Out of Stock</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label>Rating (1-5)</Label>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Rating (1-5)
+                      </Label>
                       <Input
                         type="number"
                         step="0.1"
                         min="1"
                         max="5"
-                        value={retailer.rating}
+                        value={retailer.rating || ""}
                         onChange={(e) =>
                           updateRetailer(
-                            index,
+                            retailerIndex,
                             "rating",
-                            parseFloat(e.target.value) || 4.5
+                            e.target.value === ""
+                              ? 4.5
+                              : parseFloat(e.target.value) || 4.5
                           )
                         }
-                        className="bg-white"
+                        className="bg-white/70"
                       />
                     </div>
+                  </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
-                      <Label>Review Count</Label>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Review Count
+                      </Label>
                       <Input
                         type="number"
-                        value={retailer.review_count}
+                        value={retailer.review_count || ""}
                         onChange={(e) =>
                           updateRetailer(
-                            index,
+                            retailerIndex,
                             "review_count",
-                            parseInt(e.target.value) || 0
+                            e.target.value === ""
+                              ? 0
+                              : parseInt(e.target.value) || 0
                           )
                         }
                         placeholder="89"
-                        className="bg-white"
+                        className="bg-white/70"
                       />
                     </div>
 
                     <div>
-                      <Label>Coupon Code</Label>
-                      <Input
-                        value={retailer.coupon_code || ""}
-                        onChange={(e) =>
-                          updateRetailer(index, "coupon_code", e.target.value)
-                        }
-                        placeholder="derek"
-                        className="bg-white"
-                      />
-                    </div>
-
-                    <div className="md:col-span-3">
-                      <Label>Affiliate URL (with your referral code) *</Label>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Affiliate URL *
+                      </Label>
                       <Input
                         value={retailer.affiliate_url}
                         onChange={(e) =>
-                          updateRetailer(index, "affiliate_url", e.target.value)
+                          updateRetailer(
+                            retailerIndex,
+                            "affiliate_url",
+                            e.target.value
+                          )
                         }
                         placeholder="https://retailer.com/product?ref=yourcode"
-                        className="bg-white"
+                        className="bg-white/70"
+                        required
                       />
                     </div>
+                  </div>
+
+                  {/* Size/Dosage Variants Section */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Size/Dosage Variants * (Each retailer can have multiple
+                        sizes)
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addRetailerVariant(retailerIndex)}
+                        className="text-blue-600 hover:bg-blue-50"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Size Variant
+                      </Button>
+                    </div>
+
+                    {retailer.variants.map((variant, variantIndex) => (
+                      <div
+                        key={variantIndex}
+                        className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-medium text-gray-800 flex items-center gap-2">
+                            <Package className="h-4 w-4" />
+                            Size Variant #{variantIndex + 1}
+                          </h5>
+                          {retailer.variants.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                removeRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex
+                                )
+                              }
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Size/Dosage *
+                            </Label>
+                            <Input
+                              value={variant.size}
+                              onChange={(e) =>
+                                updateRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex,
+                                  "size",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="e.g., 5mg"
+                              className="bg-white"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Regular Price ($) *
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={variant.price || ""}
+                              onChange={(e) =>
+                                updateRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex,
+                                  "price",
+                                  e.target.value === ""
+                                    ? 0
+                                    : parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="49.99"
+                              className="bg-white"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Discount %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              value={variant.discount_percentage || ""}
+                              onChange={(e) =>
+                                updateRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex,
+                                  "discount_percentage",
+                                  e.target.value === ""
+                                    ? 0
+                                    : parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="0"
+                              className="bg-white"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Auto-calculates discounted price
+                            </p>
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Discounted Price ($)
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={variant.discounted_price || ""}
+                              className="bg-gray-100"
+                              disabled
+                              placeholder="Auto-calculated"
+                            />
+                            {variant.discount_percentage > 0 &&
+                              variant.price > 0 && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  Save $
+                                  {(
+                                    variant.price -
+                                    (variant.discounted_price || 0)
+                                  ).toFixed(2)}
+                                </p>
+                              )}
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Stock Status
+                            </Label>
+                            <Select
+                              value={variant.stock ? "true" : "false"}
+                              onValueChange={(value) =>
+                                updateRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex,
+                                  "stock",
+                                  value === "true"
+                                )
+                              }
+                            >
+                              <SelectTrigger className="bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="true">In Stock</SelectItem>
+                                <SelectItem value="false">
+                                  Out of Stock
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Coupon Code
+                            </Label>
+                            <Input
+                              value={variant.coupon_code || ""}
+                              onChange={(e) =>
+                                updateRetailerVariant(
+                                  retailerIndex,
+                                  variantIndex,
+                                  "coupon_code",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="e.g., SAVE10"
+                              className="bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Variant Summary */}
+                        {variant.size && variant.price > 0 && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-blue-700 font-medium">
+                                {variant.size} - ${variant.price}
+                                {variant.discounted_price &&
+                                  variant.discounted_price > 0 &&
+                                  ` → $${variant.discounted_price} (${variant.discount_percentage}% off)`}
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  variant.stock
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {variant.stock ? "In Stock" : "Out of Stock"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {retailer.variants.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>
+                          No variants added yet. Click "Add Size Variant" to get
+                          started.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -858,9 +1414,9 @@ export function UpdatePeptideModal({
                 type="button"
                 variant="outline"
                 onClick={addRetailer}
-                className="flex items-center gap-2"
+                className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 mr-2" />
                 Add Another Retailer
               </Button>
             </div>

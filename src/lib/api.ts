@@ -133,8 +133,29 @@ export const adminApi = {
       throw new APIError('At least one dosage is required');
     }
 
-    if (!peptideData.retailers || peptideData.retailers.filter(r => r.retailer_id && r.affiliate_url && r.size && r.price > 0).length === 0) {
-      throw new APIError('At least one valid retailer is required');
+    // Updated validation for new retailer variant structure
+    if (!peptideData.retailers || peptideData.retailers.length === 0) {
+      throw new APIError('At least one retailer is required');
+    }
+
+    // Check if retailers have valid variants
+    const validRetailers = peptideData.retailers.filter(retailer => {
+      // Check basic retailer info
+      const hasBasicInfo = retailer.retailer_id &&
+        retailer.retailer_name &&
+        retailer.affiliate_url;
+
+      // Check if retailer has at least one valid variant
+      const hasValidVariant = retailer.variants &&
+        retailer.variants.some(variant =>
+          variant.size && variant.size.trim() && variant.price > 0
+        );
+
+      return hasBasicInfo && hasValidVariant;
+    });
+
+    if (validRetailers.length === 0) {
+      throw new APIError('At least one retailer with valid variant information is required');
     }
 
     return apiRequest<{ message: string; peptide: AdminPeptide }>('/admin/peptides', {

@@ -269,43 +269,52 @@ export interface ApiError {
 }
 
 // Form Types for Admin
-export interface PeptideFormData {
-  name: string;
-  category: string;
-  subcategory?: string;
-  description: string;
-  dosages: string[];
-  unit: 'mg' | 'mcg' | 'iu';
-  tags: string[];
-  image?: string;
-  // Calculator fields
-  startingDose?: string;
-  maintenanceDose?: string;
-  frequency?: string;
-  dosageNotes?: string;
-  // Stack builder fields
-  recommendedForGoals?: string[];
-  stackDifficulty?: 'Beginner' | 'Intermediate' | 'Advanced';
-  stackTiming?: string;
-  stackDuration?: number;
-  // Status
-  status?: 'active' | 'inactive';
-  // Add retailers to the form data
-  retailers?: RetailerFormData[];
+// Enhanced retailer variant type
+export interface RetailerVariant {
+    _id?: string;
+    size: string;
+    price: number;
+    discount_percentage: number;
+    discounted_price?: number;
+    stock: boolean;
+    coupon_code?: string;
 }
+
+// Enhanced retailer form data with variants
 export interface RetailerFormData {
-    retailer_id: string
-    retailer_name: string
-    product_id: string
-    price: number
-    discounted_price?: number
-    discount_percentage?: number
-    stock: boolean
-    rating: number
-    review_count: number
-    affiliate_url: string
-    coupon_code?: string
-    size: string
+    retailer_id: string;
+    retailer_name: string;
+    product_id: string;
+    rating: number;
+    review_count: number;
+    affiliate_url: string;
+    variants: RetailerVariant[];
+}
+
+// Updated peptide form data with manual goals
+export interface PeptideFormData {
+    name: string;
+    category: string;
+    subcategory?: string;
+    description: string;
+    dosages: string[];
+    unit: 'mg' | 'mcg' | 'iu';
+    tags: string[];
+    image?: string;
+    // Calculator fields
+    startingDose?: string;
+    maintenanceDose?: string;
+    frequency?: string;
+    dosageNotes?: string;
+    // Enhanced stack builder fields
+    recommendedForGoals?: string[];
+    manualGoals?: string[]; // NEW: Manual goal input
+    stackDifficulty?: 'Beginner' | 'Intermediate' | 'Advanced';
+    stackTiming?: string;
+    stackDuration?: number;
+    // Status
+    status?: 'active' | 'inactive';
+    retailers?: RetailerFormData[];
 }
 
 // API Endpoints Types

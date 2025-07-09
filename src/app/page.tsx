@@ -36,6 +36,14 @@ interface ApiPeptide {
     coupon_code?: string;
     size: string;
     last_updated?: string;
+    variants?: Array<{
+      price: number;
+      discounted_price?: number;
+      discount_percentage?: number;
+      stock: boolean;
+      coupon_code?: string;
+      size: string;
+    }>;
   }>;
   status: "active" | "inactive";
   createdAt: string;
@@ -77,21 +85,48 @@ const transformPeptideData = (apiPeptide: ApiPeptide): Peptide => {
     unit: apiPeptide.unit,
     tags: apiPeptide.tags,
     image: apiPeptide.image,
-    retailers: apiPeptide.retailers.map((retailer) => ({
-      retailer_id: retailer.retailer_id,
-      product_id: retailer.product_id,
-      price: retailer.price,
-      original_price: retailer.price,
-      discounted_price: retailer.discounted_price,
-      discount_percentage: retailer.discount_percentage,
-      stock: retailer.stock,
-      rating: retailer.rating,
-      review_count: retailer.review_count,
-      affiliate_url: retailer.affiliate_url,
-      coupon_code: retailer.coupon_code,
-      size: retailer.size,
-      last_updated: retailer.last_updated || new Date().toISOString(),
-    })),
+    // Handle both old and new retailer structures
+    retailers: apiPeptide.retailers
+      ? apiPeptide.retailers.map((retailer) => {
+          // If retailer has variants (new structure)
+          if (retailer.variants && retailer.variants.length > 0) {
+            // Return the first variant as the main retailer data for compatibility
+            const firstVariant = retailer.variants[0];
+            return {
+              retailer_id: retailer.retailer_id,
+              product_id: retailer.product_id,
+              price: firstVariant.price,
+              original_price: firstVariant.price,
+              discounted_price: firstVariant.discounted_price,
+              discount_percentage: firstVariant.discount_percentage,
+              stock: firstVariant.stock,
+              rating: retailer.rating,
+              review_count: retailer.review_count,
+              affiliate_url: retailer.affiliate_url,
+              coupon_code: firstVariant.coupon_code,
+              size: firstVariant.size,
+              last_updated: apiPeptide.updatedAt || new Date().toISOString(),
+            };
+          } else {
+            // Handle old structure (direct retailer properties)
+            return {
+              retailer_id: retailer.retailer_id,
+              product_id: retailer.product_id,
+              price: retailer.price || 0,
+              original_price: retailer.price || 0,
+              discounted_price: retailer.discounted_price,
+              discount_percentage: retailer.discount_percentage,
+              stock: retailer.stock !== undefined ? retailer.stock : true,
+              rating: retailer.rating || 4.5,
+              review_count: retailer.review_count || 0,
+              affiliate_url: retailer.affiliate_url || "",
+              coupon_code: retailer.coupon_code,
+              size: retailer.size || "",
+              last_updated: apiPeptide.updatedAt || new Date().toISOString(),
+            };
+          }
+        })
+      : [], // Handle empty retailers array
     price_history: [], // Empty for now, will be populated if needed
     status: apiPeptide.status,
     createdAt: apiPeptide.createdAt,
