@@ -519,6 +519,7 @@ export default function AddPeptideForm() {
       toast.success(response?.message || "Peptide created successfully!");
 
       setSuccess(true);
+      setIsLoading(false);
 
       // Redirect after a short delay
       setTimeout(() => {
